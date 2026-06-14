@@ -148,23 +148,6 @@ function extractLinksFromPage(domain, pageUrl, seasonNum, episodeNum, cb) {
       }
     }
 
-    // Extract uprot URLs from the block
-    var uprotMatch = blockToSearch.match(/(https?:\/\/uprot\.net\/(?:ms[efi]{2,3})\/[A-Za-z0-9_-]+)/gi);
-    if (uprotMatch) {
-      uprotMatch.forEach(function (u) {
-        if (!seen[u]) {
-          seen[u] = true;
-          streams.push({
-            url: u,
-            name: 'Eurostreaming',
-            title: 'MaxStream [uprot]',
-            behaviorHints: { notWebReady: true }
-          });
-        }
-      });
-    }
-
-    // Also search for mixdrop links in the same block
     var mdRegex = /https?:\/\/(?:mixdrop|m1xdrop|mxdrop)\.[a-z]+\/[A-Za-z0-9]+/gi;
     var mdMatch;
     while ((mdMatch = mdRegex.exec(blockToSearch)) !== null) {
