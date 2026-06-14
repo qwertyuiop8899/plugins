@@ -1,0 +1,55 @@
+{
+  "name": "PrisonMike Plugins",
+  "version": "1.0.0",
+  "scrapers": [
+    {
+      "id": "cb01",
+      "name": "CB01",
+      "description": "CB01 provider for Nuvio.",
+      "version": "1.0.0",
+      "author": "PrisonMike",
+      "supportedTypes": ["movie", "tv"],
+      "filename": "plugin_cb01.js",
+      "enabled": true,
+      "logo": "https://cb01.fyi/favicon.ico",
+      "contentLanguage": ["it"],
+      "supportsExternalPlayer": true
+    },
+    {
+      "id": "es",
+      "name": "EasyStream",
+      "description": "EasyStream provider for Nuvio.",
+      "version": "1.0.0",
+      "author": "PrisonMike",
+      "supportedTypes": ["movie", "tv"],
+      "filename": "plugin_es.js",
+      "enabled": true,
+      "contentLanguage": ["it"],
+      "supportsExternalPlayer": true
+    },
+    {
+      "id": "filmez",
+      "name": "Filmez",
+      "description": "Filmez provider for Nuvio.",
+      "version": "1.0.0",
+      "author": "PrisonMike",
+      "supportedTypes": ["movie", "tv"],
+      "filename": "plugin_filmez.js",
+      "enabled": true,
+      "contentLanguage": ["it"],
+      "supportsExternalPlayer": true
+    },
+    {
+      "id": "vd",
+      "name": "VideoDefinition",
+      "description": "VideoDefinition provider for Nuvio.",
+      "version": "1.0.0",
+      "author": "PrisonMike",
+      "supportedTypes": ["movie", "tv"],
+      "filename": "plugin_vd.js",
+      "enabled": true,
+      "contentLanguage": ["it"],
+      "supportsExternalPlayer": true
+    }
+  ]
+}
