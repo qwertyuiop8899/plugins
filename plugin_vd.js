@@ -1,56 +1,73 @@
 /* Vidxgo (vd) provider - Nuvio plugin
  * Movies and TV series. XOR-decodes blocks to extract master.m3u8 URL.
- * Stream URL proxied through m3u8-proxy for playlist rewriting and segment proxying.
  */
 function getStreams(id, type, season, episode) {
   return new Promise(function (resolve, reject) {
     var tmdbId = String(id || '').replace(/^tmdb:/, '');
-    var imdbId = tmdbId;
+    var imdbId = (typeof __imdb_id !== 'undefined' ? __imdb_id : tmdbId);
     var mediaType = String(type || 'movie').toLowerCase();
     var isSeries = mediaType === 'series' || mediaType === 'tv';
-    var vdId = imdbId;
 
-    // Build vidxgo page URL (Vidxgo uses TMDB IDs directly)
-    var vdDomain = 'https://v.vidxgo.co';
-    var pageUrl;
-    if (isSeries) {
-      var seasonNum = Number(season) || 1;
-      var episodeNum = Number(episode) || 1;
-      pageUrl = vdDomain + '/' + vdId + '/' + seasonNum + '/' + episodeNum;
-    } else {
-      pageUrl = vdDomain + '/' + vdId;
-    }
-
-    fetchVidxgoPage(pageUrl, function (err, html) {
-        if (err || !html) return resolve([]);
-
-        var decoded = decodeXorBlocks(html);
-        if (!decoded) return resolve([]);
-
-        var masterUrl = extractMasterUrl(decoded);
-        if (!masterUrl) return resolve([]);
-
-        var subtitles = extractSubtitles(decoded);
-
-        // Create stream URL via m3u8-proxy
-        var streamUrl = buildProxyUrl(masterUrl);
-
-        var stream = {
-          name: 'Vidxgo',
-          title: 'Vidxgo' + (isSeries ? (' S' + (Number(season) || 1) + 'E' + (Number(episode) || 1)) : ''),
-          url: streamUrl,
-          behaviorHints: {
-            notWebReady: true,
-            bingeGroup: 'vidxgo-' + imdbId
-          }
-        };
-
-        if (subtitles && subtitles.length > 0) {
-          stream.subtitles = subtitles;
+    // Try to get TMDB numeric ID (vidxgo uses TMDB IDs)
+    function tryFetch(tryImdbId) {
+      getCinemetaMeta(isSeries ? 'series' : 'movie', tryImdbId, function (err, meta) {
+        var vid = tryImdbId;
+        if (meta && meta.moviedb_id) {
+          vid = String(meta.moviedb_id);
         }
 
-        resolve([stream]);
+        var vdDomain = 'https://v.vidxgo.co';
+        var pageUrl;
+        if (isSeries) {
+          var seasonNum = Number(season) || 1;
+          var episodeNum = Number(episode) || 1;
+          pageUrl = vdDomain + '/' + vid + '/' + seasonNum + '/' + episodeNum;
+        } else {
+          pageUrl = vdDomain + '/' + vid;
+        }
+
+        fetchVidxgoPage(pageUrl, function (err, html) {
+          if (err || !html) {
+            // If imdbId differs from tryImdbId and failed, retry with imdbId
+            if (tryImdbId !== imdbId && imdbId) return tryFetch(imdbId);
+            return resolve([]);
+          }
+
+          var decoded = decodeXorBlocks(html) || tryFallbackDecode(html);
+          if (!decoded) {
+            if (tryImdbId !== imdbId && imdbId) return tryFetch(imdbId);
+            return resolve([]);
+          }
+
+          var masterUrl = extractMasterUrl(decoded);
+          if (!masterUrl) {
+            if (tryImdbId !== imdbId && imdbId) return tryFetch(imdbId);
+            return resolve([]);
+          }
+
+          var subtitles = extractSubtitles(decoded);
+          var streamUrl = buildProxyUrl(masterUrl);
+
+          var stream = {
+            name: 'Vidxgo',
+            title: 'Vidxgo' + (isSeries ? (' S' + (Number(season) || 1) + 'E' + (Number(episode) || 1)) : ''),
+            url: streamUrl,
+            behaviorHints: {
+              notWebReady: true,
+              bingeGroup: 'vidxgo-' + vid
+            }
+          };
+
+          if (subtitles && subtitles.length > 0) {
+            stream.subtitles = subtitles;
+          }
+
+          resolve([stream]);
+        });
       });
+    }
+
+    tryFetch(imdbId);
   });
 }
 
@@ -121,6 +138,25 @@ function decodeXorBlocks(html) {
   return results.join('\n');
 }
 
+function tryFallbackDecode(html) {
+  // Try to find inline JSON with stream data
+  try {
+    var jsonMatch = html.match(/<script[^>]+id=["']__NEXT_DATA__["'][^>]*>(.*?)<\/script>/s);
+    if (jsonMatch) {
+      var data = JSON.parse(jsonMatch[1]);
+      return JSON.stringify(data);
+    }
+  } catch (e) {}
+
+  // Look for direct m3u8 URLs in page
+  try {
+    var m3u8Match = html.match(/https?:\/\/[^"'\s]*master\.m3u8[^"'\s]*/);
+    if (m3u8Match) return m3u8Match[0];
+  } catch (e) {}
+
+  return null;
+}
+
 function extractMasterUrl(decodedJs) {
   // Pattern 1: currentSrc='...master.m3u8...'
   var p1 = decodedJs.match(/currentSrc\s*=\s*['"]([^'"]*master\.m3u8[^'"]*)['"]/);
@@ -133,6 +169,10 @@ function extractMasterUrl(decodedJs) {
   // Pattern 3: any m3u8 URL
   var p3 = decodedJs.match(/['"](https?:\\?\/\\?\/[^'"]*\.m3u8[^'"]*)['"]/);
   if (p3) return p3[1].replace(/\\/g, '');
+
+  // Pattern 4: direct m3u8 URL without quotes
+  var p4 = decodedJs.match(/https?:\/\/[^"'\]\)\s,]*master\.m3u8[^"'\]\)\s,]*/);
+  if (p4) return p4[0].replace(/\\/g, '');
 
   return null;
 }
@@ -162,8 +202,6 @@ function extractSubtitles(decodedJs) {
 }
 
 function buildProxyUrl(masterUrl) {
-  // Use the m3u8-proxy endpoint for playlist rewriting and segment proxying
-  // This URL will be processed by our server's /nuvio/m3u8-proxy handler
   var headers = {
     'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64; rv:150.0) Gecko/20100101 Firefox/150.0',
     'Accept': '*/*',
