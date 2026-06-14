@@ -6,7 +6,7 @@
       "id": "toaststream-cb01",
       "name": "CB01",
       "version": "1.0.0",
-      "description": "Film e Serie TV da CB01",
+      "description": "Film e Serie TV da CB01 - MixDrop links",
       "resources": ["stream"],
       "contentLanguage": ["it"],
       "formats": ["mp4", "m3u8"],
@@ -26,19 +26,6 @@
       "idPrefixes": ["tmdb:", "tt"],
       "filename": "plugin_es.js",
       "supportedTypes": ["series", "tv"],
-      "enabled": true
-    },
-    {
-      "id": "toaststream-filmez",
-      "name": "Filmez",
-      "version": "1.0.0",
-      "description": "Film da Filmez",
-      "resources": ["stream"],
-      "contentLanguage": ["it"],
-      "formats": ["mp4", "m3u8"],
-      "idPrefixes": ["tmdb:", "tt"],
-      "filename": "plugin_filmez.js",
-      "supportedTypes": ["movie"],
       "enabled": true
     },
     {
