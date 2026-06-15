@@ -211,7 +211,7 @@ function mdFetch(host, path, cb) {
     .catch(function (err) { cb(err, null, url); });
 }
 
-function extractMixDrop(mdId, cb) {
+function extractMixDrop(mdId, quality, cb) {
   var hosts = mdHostCandidates(null);
   var lastErr = null;
   var tryHost = function (idx) {
@@ -243,6 +243,7 @@ function extractMixDrop(mdId, cb) {
         url: streamUrl,
         name: "CB01",
         title: "MixDrop",
+        quality: quality || '720p',
         behaviorHints: { notWebReady: true },
         headers: {
           "User-Agent": USER_AGENT,
@@ -282,16 +283,16 @@ function unwrapStayonline(stayId, cb) {
   .catch(function (err) { cb(err, null); });
 }
 
-function processStayonlineUrl(stayUrl, cb) {
-  var stayIdMatch = stayUrl.match(/\/e\/([A-Za-z0-9]+)/);
+function processStayonlineUrl(stayUrl, quality, cb) {
+  var stayIdMatch = stayUrl.match(/\/([e|l])\/([A-Za-z0-9]+)/);
   if (!stayIdMatch) return cb(null);
-  unwrapStayonline(stayIdMatch[1], function (err, actualUrl) {
+  unwrapStayonline(stayIdMatch[2], function (err, actualUrl) {
     if (!actualUrl) return cb(null);
     console.log('[CB01] Unwrapped: ' + actualUrl);
     if (!isMixDropHost(actualUrl)) return cb(null);
     var mdIdMatch = actualUrl.match(/\/e\/([A-Za-z0-9]+)/);
     if (!mdIdMatch) return cb(null);
-    extractMixDrop(mdIdMatch[1], function (stream) {
+    extractMixDrop(mdIdMatch[1], quality, function (stream) {
       cb(stream);
     });
   });
@@ -301,29 +302,40 @@ function extractFromPage(pageUrl, season, episode, cb) {
   cb01Fetch(pageUrl, function (err, html) {
     if (err || !html) return cb([]);
 
-    var iframe2 = html.match(/<div[^>]+id=["']iframen2["'][^>]*data-src=["']([^"']+)["']/i);
-    var embedUrl = iframe2 ? iframe2[1] : null;
+    var tables = html.match(/<table[^>]*>[\s\S]*?<\/table>/gi) || [];
+    var sections = [];
+    var currentQuality = null;
 
-    if (!embedUrl) {
-      var iframe1 = html.match(/<div[^>]+id=["']iframen1["'][^>]*data-src=["']([^"']+)["']/i);
-      embedUrl = iframe1 ? iframe1[1] : null;
+    for (var i = 0; i < tables.length; i++) {
+      var lower = tables[i].replace(/<[^>]+>/g, '').toLowerCase().trim();
+      if (lower.indexOf('streaming') >= 0) {
+        if (lower.indexOf('hd') >= 0) {
+          currentQuality = '1080p';
+        } else {
+          currentQuality = '720p';
+        }
+        continue;
+      }
+      if (currentQuality && tables[i].indexOf('tableinside') >= 0) {
+        var linkMatch = tables[i].match(/<a[^>]+href="([^"]*stayonline\.pro[^"]*)"/i);
+        if (linkMatch) {
+          sections.push({ url: linkMatch[1], quality: currentQuality });
+        }
+      }
     }
 
-    if (!embedUrl) return cb([]);
+    if (sections.length === 0) return cb([]);
 
-    if (embedUrl.indexOf('stayonline.pro') >= 0) {
-      processStayonlineUrl(embedUrl, function (stream) {
-        cb(stream ? [stream] : []);
+    var results = [];
+    var pending = sections.length;
+
+    sections.forEach(function (section) {
+      processStayonlineUrl(section.url, section.quality, function (stream) {
+        if (stream) results.push(stream);
+        pending--;
+        if (pending === 0) cb(results.length > 0 ? results : []);
       });
-    } else if (isMixDropHost(embedUrl)) {
-      var mdIdMatch = embedUrl.match(/\/e\/([A-Za-z0-9]+)/);
-      if (!mdIdMatch) return cb([]);
-      extractMixDrop(mdIdMatch[1], function (stream) {
-        cb(stream ? [stream] : []);
-      });
-    } else {
-      cb([]);
-    }
+    });
   });
 }
 
