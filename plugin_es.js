@@ -6,7 +6,39 @@
 // =========================================================================
 // CONFIGURATION
 // =========================================================================
-var ES_UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/146.0.0.0 Safari/537.36';
+var ES_UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36';
+
+if (typeof URL === 'undefined') {
+  URL = function(uri, base) {
+    var resolved = uri;
+    if (base) {
+      if (uri.indexOf('://') < 0) {
+        var baseParts = base.match(/^(https?:\/\/[^\/]+)(.*)$/);
+        var baseOrigin = baseParts ? baseParts[1] : '';
+        var basePath = baseParts ? baseParts[2] : '';
+        if (uri.startsWith('//')) {
+          resolved = (base.startsWith('https') ? 'https:' : 'http:') + uri;
+        } else if (uri.startsWith('/')) {
+          resolved = baseOrigin + uri;
+        } else {
+          var dir = basePath.substring(0, basePath.lastIndexOf('/') + 1);
+          resolved = baseOrigin + dir + uri;
+        }
+      }
+    }
+    var m = resolved.match(/^(https?):\/\/([^\/?:#]+)(?::(\d+))?([^?#]*)(\?[^#]*)?(#.*)?$/);
+    if (!m) throw new Error('Invalid URL: ' + resolved);
+    this.href = resolved;
+    this.protocol = m[1] + ':';
+    this.hostname = m[2];
+    this.port = m[3] || '';
+    this.host = this.hostname + (this.port ? ':' + this.port : '');
+    this.pathname = m[4] || '/';
+    this.search = m[5] || '';
+    this.hash = m[6] || '';
+    this.origin = m[1] + '://' + this.host;
+  };
+}
 
 var MD_HOSTS = [
   'mixdrop.vip', 'mixdrop.ps', 'mixdrop.ch', 'mixdrop.to', 'mixdrop.club',
@@ -121,8 +153,28 @@ function _follow(url, options, maxHops) {
         fetchOpts.headers = fetchOpts.headers || {};
         fetchOpts.headers['Cookie'] = cookieStr;
       }
-      fetch(curUrl, fetchOpts).then(function(r) {
-        var finalUrl = r.url || curUrl;
+
+      // Proxy clicka.cc and safego.cc through Cloudflare Worker
+      var finalFetchUrl = curUrl;
+      if (curUrl.includes('clicka.cc') || curUrl.includes('safego.cc')) {
+        finalFetchUrl = 'https://vidclick.leanhhu061208-775.workers.dev/?url=' + encodeURIComponent(curUrl);
+        fetchOpts.headers = fetchOpts.headers || {};
+        fetchOpts.headers['User-Agent'] = ES_UA;
+        fetchOpts.headers['Accept'] = 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8';
+        fetchOpts.headers['Accept-Language'] = 'it-IT,it;q=0.9,en-US;q=0.8,en;q=0.7';
+        fetchOpts.headers['Sec-Ch-Ua'] = '"Google Chrome";v="125", "Chromium";v="125", "Not.A/Brand";v="24"';
+        fetchOpts.headers['Sec-Ch-Ua-Mobile'] = '?0';
+        fetchOpts.headers['Sec-Ch-Ua-Platform'] = '"Windows"';
+        fetchOpts.headers['Sec-Fetch-Dest'] = 'document';
+        fetchOpts.headers['Sec-Fetch-Mode'] = 'navigate';
+        fetchOpts.headers['Sec-Fetch-Site'] = 'none';
+        fetchOpts.headers['Sec-Fetch-User'] = '?1';
+        fetchOpts.headers['Upgrade-Insecure-Requests'] = '1';
+        fetchOpts.headers['Connection'] = 'keep-alive';
+      }
+
+      fetch(finalFetchUrl, { ...fetchOpts, redirect: 'manual' }).then(function(r) {
+        var finalUrl = curUrl; 
         _extractCookies(r, finalUrl);
         if (r.status >= 300 && r.status < 400 && r.status !== 304) {
           var loc = r.headers.get('location');
@@ -1207,12 +1259,26 @@ var TMDB_API_KEY = '68e094699525b18a70bab2f86b1fa706';
 
 function _tmdbSeriesName(id) {
   return new Promise(function(resolve) {
-    var numId = String(id).replace(/^tmdb:/, '').replace(/^tt\d+$/, '');
-    if (!/^\d+$/.test(numId)) return resolve(null);
-    fetch('https://api.themoviedb.org/3/tv/' + numId + '?api_key=' + TMDB_API_KEY + '&language=it-IT', { timeout: 10000 })
-      .then(function(r) { return r.ok ? r.json() : null; })
-      .then(function(data) { resolve(data && (data.name || data.original_name) ? data.name : null); })
-      .catch(function() { resolve(null); });
+    var cleanId = String(id || '').replace(/^tmdb:/, '');
+    if (/^tt\d+$/.test(cleanId)) {
+      fetch('https://api.themoviedb.org/3/find/' + cleanId + '?api_key=' + TMDB_API_KEY + '&external_source=imdb_id&language=it-IT', { timeout: 10000 })
+        .then(function(r) { return r.ok ? r.json() : null; })
+        .then(function(data) {
+          if (data && data.tv_results && data.tv_results.length > 0) {
+            resolve(data.tv_results[0].name || data.tv_results[0].original_name || null);
+          } else {
+            resolve(null);
+          }
+        })
+        .catch(function() { resolve(null); });
+    } else if (/^\d+$/.test(cleanId)) {
+      fetch('https://api.themoviedb.org/3/tv/' + cleanId + '?api_key=' + TMDB_API_KEY + '&language=it-IT', { timeout: 10000 })
+        .then(function(r) { return r.ok ? r.json() : null; })
+        .then(function(data) { resolve(data && (data.name || data.original_name) ? data.name : null); })
+        .catch(function() { resolve(null); });
+    } else {
+      resolve(null);
+    }
   });
 }
 
