@@ -1177,7 +1177,24 @@ function resolveClickacc(startUrl, kind) {
 }
 
 // =========================================================================
-// EXISTING CODE (preserved)
+// =========================================================================
+// TMDB API helper (used as fallback when Cinemeta fails)
+// =========================================================================
+var TMDB_API_KEY = '68e094699525b18a70bab2f86b1fa706';
+
+function _tmdbSeriesName(id) {
+  return new Promise(function(resolve) {
+    var numId = String(id).replace(/^tmdb:/, '').replace(/^tt\d+$/, '');
+    if (!/^\d+$/.test(numId)) return resolve(null);
+    fetch('https://api.themoviedb.org/3/tv/' + numId + '?api_key=' + TMDB_API_KEY + '&language=it-IT', { timeout: 10000 })
+      .then(function(r) { return r.ok ? r.json() : null; })
+      .then(function(data) { resolve(data && (data.name || data.original_name) ? data.name : null); })
+      .catch(function() { resolve(null); });
+  });
+}
+
+// =========================================================================
+// ENTRY POINT
 // =========================================================================
 function getStreams(id, type, season, episode) {
   return new Promise(function (resolve, reject) {
@@ -1187,13 +1204,10 @@ function getStreams(id, type, season, episode) {
 
     if (mediaType !== 'series' && mediaType !== 'tv') return resolve([]);
 
-    getCinemetaMeta('series', imdbId, function (err, meta) {
-      if (!meta || !meta.name) return resolve([]);
-      var title = meta.name;
-      var seasonNum = Number(season) || 1;
-      var episodeNum = Number(episode) || 1;
-      var year = meta.releaseInfo || '';
+    var seasonNum = Number(season) || 1;
+    var episodeNum = Number(episode) || 1;
 
+    function doSearch(title) {
       getEsDomain(function (domain) {
         if (!domain) return resolve([]);
         searchSeries(domain, title, seasonNum, function (pageUrl) {
@@ -1202,6 +1216,15 @@ function getStreams(id, type, season, episode) {
             resolve(streams || []);
           });
         });
+      });
+    }
+
+    getCinemetaMeta('series', imdbId, function (err, meta) {
+      if (meta && meta.name) return doSearch(meta.name);
+      // Cinemeta failed — try TMDB API with the numeric part
+      _tmdbSeriesName(imdbId).then(function(tmdbTitle) {
+        if (tmdbTitle) return doSearch(tmdbTitle);
+        resolve([]);
       });
     });
   });
