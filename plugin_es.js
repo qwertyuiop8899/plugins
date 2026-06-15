@@ -104,7 +104,7 @@ function _clickaFetch(url, referer) {
         try {
           if (r.headers && r.headers.get) {
             var sc = r.headers.get('set-cookie') || r.headers.get('Set-Cookie');
-            if (sc) _jarSet(url, sc);
+            if (sc) _jarSet(r.url || url, sc);
           }
         } catch(e) {}
         return r.text().then(function(text) {
@@ -133,7 +133,7 @@ function _clickaPost(url, formData, referer) {
         try {
           if (r.headers && r.headers.get) {
             var sc = r.headers.get('set-cookie') || r.headers.get('Set-Cookie');
-            if (sc) _jarSet(url, sc);
+            if (sc) _jarSet(r.url || url, sc);
           }
         } catch(e) {}
         return r.text().then(function(text) {
@@ -1296,7 +1296,7 @@ function searchSeries(domain, title, seasonNum, cb) {
 }
 
 // =========================================================================
-// MODIFIED extractLinksFromPage - now also handles clicka.cc URLs
+// extractLinksFromPage - Python es.py approach (regex entire HTML)
 // =========================================================================
 function extractLinksFromPage(domain, pageUrl, seasonNum, episodeNum, cb) {
   esFetch(pageUrl, function (err, html) {
@@ -1304,102 +1304,64 @@ function extractLinksFromPage(domain, pageUrl, seasonNum, episodeNum, cb) {
     var streams = [];
     var seen = {};
 
-    var seasonMatch = html.match(new RegExp('<div[^>]*class="[^"]*tab-content[^"]*"[^>]*id="tab-' + seasonNum + '"[^>]*>([\\s\\S]*?)</div>\\s*</div>', 'i'));
-    var seasonHtml = seasonMatch ? seasonMatch[1] : html;
+    // Match episode line: "1×01" / "1&#215;01" / "S01E01" (like Python es.py)
+    var ep2 = episodeNum < 10 ? '0' + String(episodeNum) : String(episodeNum);
+    var patterns = [
+      seasonNum + '\\s*(?:&#215;|×|x)\\s*0?' + episodeNum + '[\\s\\S]{0,1800}?(?=<br\\s*/?>|</div>)',
+      'S0?' + seasonNum + 'E' + ep2 + '[\\s\\S]{0,1800}?(?=<br\\s*/?>|</div>)'
+    ];
+    var block = null;
+    for (var pi = 0; pi < patterns.length; pi++) {
+      var m = html.match(new RegExp(patterns[pi], 'i'));
+      if (m) { block = m[0]; break; }
+    }
+    if (!block) block = html;
 
-    // Find uprot links near the episode
-    var epPattern = new RegExp('Stagione\\s*' + seasonNum + '\\s*(?:-|x|Episodio)?\\s*' + episodeNum + '[^<]*', 'i');
-    var epBlock = seasonHtml.match(epPattern);
-    var blockToSearch = '';
-
-    if (epBlock) {
-      var blockStart = seasonHtml.indexOf(epBlock[0]);
-      blockToSearch = seasonHtml.substring(blockStart, blockStart + 800);
-    } else {
-      var lines = seasonHtml.split('\n');
-      for (var i = 0; i < lines.length; i++) {
-        var line = lines[i].toLowerCase();
-        if (line.indexOf('stagione') >= 0 && line.indexOf(String(seasonNum)) >= 0 &&
-            String(episodeNum).length <= 2 && line.indexOf(String(episodeNum)) >= 0) {
-          for (var j = i; j < Math.min(i + 15, lines.length); j++) {
-            blockToSearch += lines[j] + '\n';
-          }
-          break;
-        }
+    // Extract clicka.cc URLs from the matched region
+    var clickaTasks = [];
+    var clickaRe = /https?:\/\/clicka\.cc\/(tv|mix|delta)\/[A-Za-z0-9]+/gi;
+    var cm;
+    while ((cm = clickaRe.exec(block)) !== null) {
+      if (!seen[cm[0]]) { seen[cm[0]] = true; clickaTasks.push({ url: cm[0], kind: cm[1] }); }
+    }
+    // Fallback: search entire HTML for clicka.cc URLs
+    if (clickaTasks.length === 0) {
+      while ((cm = clickaRe.exec(html)) !== null) {
+        if (!seen[cm[0]]) { seen[cm[0]] = true; clickaTasks.push({ url: cm[0], kind: cm[1] }); }
       }
     }
 
-    // Extract direct MixDrop URLs (existing behavior)
-    var mdPatUrl = new RegExp('https?://[^\\s"\'>]*' + MD_PAT + '[^\\s"\'>]*/[A-Za-z0-9]+', 'gi');
-    var mdMatch;
-    while ((mdMatch = mdPatUrl.exec(blockToSearch)) !== null) {
-      var mdUrl = mdMatch[0];
-      if (!seen[mdUrl]) {
-        seen[mdUrl] = true;
+    // Also extract direct MixDrop URLs (from entire page)
+    var mdRe = new RegExp('https?://[^\\s"\'>]*' + MD_PAT + '[^\\s"\'>]*/[A-Za-z0-9]+', 'gi');
+    while ((cm = mdRe.exec(html)) !== null) {
+      if (!seen[cm[0]]) {
+        seen[cm[0]] = true;
         streams.push({
-          url: mdUrl,
+          url: cm[0],
           name: 'Eurostreaming',
           title: 'MixDrop',
           behaviorHints: { notWebReady: true }
         });
       }
     }
-
-    // Also search the entire page for mixdrop
-    while ((mdMatch = mdPatUrl.exec(html)) !== null) {
-      var mdGUrl = mdMatch[0];
-      if (!seen[mdGUrl]) {
-        seen[mdGUrl] = true;
-        streams.push({
-          url: mdGUrl,
-          name: 'Eurostreaming',
-          title: 'MixDrop',
-          behaviorHints: { notWebReady: true }
-        });
-      }
-    }
-
-    // Search for mixdrop URLs inside JavaScript strings/arrays
-    var jsMdMatch = html.match(new RegExp('["\'](https?://[^\\s"\'>]*' + MD_PAT + '[^\\s"\'>]*/[A-Za-z0-9]+)["\']', 'gi'));
-    if (jsMdMatch) {
-      jsMdMatch.forEach(function (m) {
-        var url = m.replace(/["']/g, '');
-        if (!seen[url]) {
-          seen[url] = true;
+    // Search inside JS strings too
+    var jsUrlRe = /["'](https?:\/\/[^"']+)["']/g;
+    var jm;
+    while ((jm = jsUrlRe.exec(html)) !== null) {
+      var mdRe2 = new RegExp('https?://[^\\s"\'>]*' + MD_PAT + '[^\\s"\'>]*/[A-Za-z0-9]+', 'gi');
+      while ((cm = mdRe2.exec(jm[1])) !== null) {
+        if (!seen[cm[0]]) {
+          seen[cm[0]] = true;
           streams.push({
-            url: url,
+            url: cm[0],
             name: 'Eurostreaming',
             title: 'MixDrop',
             behaviorHints: { notWebReady: true }
           });
         }
-      });
-    }
-
-    // NEW: Extract clicka.cc URLs for captcha-based resolution
-    var clickaTasks = [];
-    var clickaRe = /https?:\/\/clicka\.cc\/(tv|mix|delta)\/[A-Za-z0-9]+/gi;
-    var cm;
-    while ((cm = clickaRe.exec(blockToSearch)) !== null) {
-      var cUrl = cm[0];
-      var cKind = cm[1];
-      if (!seen[cUrl]) {
-        seen[cUrl] = true;
-        clickaTasks.push({ url: cUrl, kind: cKind });
-      }
-    }
-    // Also search full page HTML (inside JS)
-    var clickaGlobalRe = /https?:\/\/clicka\.cc\/(tv|mix|delta)\/[A-Za-z0-9]+/gi;
-    while ((cm = clickaGlobalRe.exec(html)) !== null) {
-      var cUrl2 = cm[0];
-      var cKind2 = cm[1];
-      if (!seen[cUrl2]) {
-        seen[cUrl2] = true;
-        clickaTasks.push({ url: cUrl2, kind: cKind2 });
       }
     }
 
-    // If no clicka URLs, return what we have
     if (clickaTasks.length === 0) return cb(streams.length > 0 ? streams : null);
 
     // Resolve clicka.cc URLs
