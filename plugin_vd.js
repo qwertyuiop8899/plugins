@@ -3,6 +3,33 @@
  */
 var Buffer = typeof Buffer !== 'undefined' ? Buffer : require('buffer').Buffer;
 
+var TMDB_API_KEY = '68e094699525b18a70bab2f86b1fa706';
+
+function _vdTmdbToImdb(tmdbId, type) {
+  return new Promise(function(resolve) {
+    if (/^tt\d+$/.test(tmdbId)) {
+      return resolve(tmdbId);
+    }
+    // If it's a numeric ID, fetch from TMDB
+    var endpoint = type === 'series' || type === 'tv'
+      ? 'https://api.themoviedb.org/3/tv/' + tmdbId + '/external_ids?api_key=' + TMDB_API_KEY
+      : 'https://api.themoviedb.org/3/movie/' + tmdbId + '?api_key=' + TMDB_API_KEY;
+      
+    fetch(endpoint, { timeout: 10000 })
+      .then(function(r) { return r.ok ? r.json() : null; })
+      .then(function(data) {
+        if (data && data.imdb_id) {
+          resolve(data.imdb_id);
+        } else if (data && data.external_ids && data.external_ids.imdb_id) {
+          resolve(data.external_ids.imdb_id);
+        } else {
+          resolve(null);
+        }
+      })
+      .catch(function() { resolve(null); });
+  });
+}
+
 function getStreams(id, type, season, episode) {
   try {
     var fs = require('fs');
@@ -16,105 +43,90 @@ function getStreams(id, type, season, episode) {
       fs.appendFileSync('vd_run_log.txt', new Date().toISOString() + ': Promise executor started\n');
     } catch(e) {}
 
-    var tmdbId = String(id || '').replace(/^tmdb:/, '');
-    var imdbId = (typeof __imdb_id !== 'undefined' ? __imdb_id : tmdbId);
+    var cleanId = String(id || '').replace(/^tmdb:/, '');
     var mediaType = String(type || 'movie').toLowerCase();
     var isSeries = mediaType === 'series' || mediaType === 'tv';
 
-    try {
-      var fs = require('fs');
-      fs.appendFileSync('vd_run_log.txt', new Date().toISOString() + ': Variables defined. tmdbId=' + tmdbId + ' imdbId=' + imdbId + '\n');
-    } catch(e) {}
-
-    // Try to get TMDB numeric ID (vidxgo uses TMDB IDs)
-    function tryFetch(tryImdbId) {
+    var globalImdbId = (typeof __imdb_id !== 'undefined' && /^tt\d+$/.test(__imdb_id)) ? __imdb_id : null;
+    var getImdbIdPromise;
+    
+    if (globalImdbId) {
       try {
         var fs = require('fs');
-        fs.appendFileSync('vd_run_log.txt', new Date().toISOString() + ': tryFetch started with ' + tryImdbId + '\n');
+        fs.appendFileSync('vd_run_log.txt', new Date().toISOString() + ': Using global __imdb_id: ' + globalImdbId + '\n');
       } catch(e) {}
-
-      getCinemetaMeta(isSeries ? 'series' : 'movie', tryImdbId, function (err, meta) {
-        try {
-          var fs = require('fs');
-          fs.appendFileSync('vd_run_log.txt', new Date().toISOString() + ': getCinemetaMeta finished. meta=' + (meta ? JSON.stringify(meta) : 'null') + '\n');
-        } catch(e) {}
-
-        var vid = tryImdbId;
-        // Keep IMDb ID for Vidxgo (does not support TMDB IDs)
-
-
-        var vdDomain = 'https://v.vidxgo.co';
-        var pageUrl;
-        if (isSeries) {
-          var seasonNum = Number(season) || 1;
-          var episodeNum = Number(episode) || 1;
-          pageUrl = vdDomain + '/' + vid + '/' + seasonNum + '/' + episodeNum;
-        } else {
-          pageUrl = vdDomain + '/' + vid;
-        }
-
-        try {
-          var fs = require('fs');
-          fs.appendFileSync('vd_run_log.txt', new Date().toISOString() + ': fetchVidxgoPage starting for ' + pageUrl + '\n');
-        } catch(e) {}
-
-        fetchVidxgoPage(pageUrl, function (err, html) {
-          try {
-            var fs = require('fs');
-            var logMsg = new Date().toISOString() + ': fetchVidxgoPage finished: err=' + (err ? err.message : 'null') + ' htmlLength=' + (html ? html.length : 0) + ' preview=' + (html ? html.substring(0, 200).replace(/\n/g, ' ') : '') + '\n';
-            fs.appendFileSync('vd_run_log.txt', logMsg);
-          } catch(e) {}
-
-          if (err || !html) {
-            // If imdbId differs from tryImdbId and failed, retry with imdbId
-            if (tryImdbId !== imdbId && imdbId) return tryFetch(imdbId);
-            return resolve([]);
-          }
-
-          var decoded = decodeXorBlocks(html) || tryFallbackDecode(html);
-          if (!decoded) {
-            if (tryImdbId !== imdbId && imdbId) return tryFetch(imdbId);
-            return resolve([]);
-          }
-
-          var masterUrl = extractMasterUrl(decoded);
-          if (!masterUrl) {
-            if (tryImdbId !== imdbId && imdbId) return tryFetch(imdbId);
-            return resolve([]);
-          }
-
-          var subtitles = extractSubtitles(decoded);
-          var streamUrl = buildProxyUrl(masterUrl);
-
-          var stream = {
-            name: 'Vidxgo',
-            title: 'Vidxgo' + (isSeries ? (' S' + (Number(season) || 1) + 'E' + (Number(episode) || 1)) : ''),
-            url: streamUrl,
-            behaviorHints: {
-              notWebReady: true,
-              bingeGroup: 'vidxgo-' + vid
-            }
-          };
-
-          if (subtitles && subtitles.length > 0) {
-            stream.subtitles = subtitles;
-          }
-
-          resolve([stream]);
-        });
-      });
+      getImdbIdPromise = Promise.resolve(globalImdbId);
+    } else {
+      getImdbIdPromise = _vdTmdbToImdb(cleanId, isSeries ? 'series' : 'movie');
     }
 
-    tryFetch(imdbId);
-  });
-}
+    getImdbIdPromise.then(function(imdbId) {
+      if (!imdbId) {
+        imdbId = cleanId;
+      }
+      
+      try {
+        var fs = require('fs');
+        fs.appendFileSync('vd_run_log.txt', new Date().toISOString() + ': Resolved IMDb ID: ' + imdbId + '\n');
+      } catch(e) {}
 
-function getCinemetaMeta(type, imdbId, cb) {
-  var url = 'https://v3-cinemeta.strem.io/meta/' + type + '/' + imdbId + '.json';
-  fetch(url, { timeout: 10000 })
-    .then(function (r) { return r.ok ? r.json() : null; })
-    .then(function (data) { cb(null, data && data.meta ? data.meta : null); })
-    .catch(function () { cb(null, null); });
+      var vdDomain = 'https://v.vidxgo.co';
+      var pageUrl;
+      if (isSeries) {
+        var seasonNum = Number(season) || 1;
+        var episodeNum = Number(episode) || 1;
+        pageUrl = vdDomain + '/' + imdbId + '/' + seasonNum + '/' + episodeNum;
+      } else {
+        pageUrl = vdDomain + '/' + imdbId;
+      }
+
+      try {
+        var fs = require('fs');
+        fs.appendFileSync('vd_run_log.txt', new Date().toISOString() + ': fetchVidxgoPage starting for ' + pageUrl + '\n');
+      } catch(e) {}
+
+      fetchVidxgoPage(pageUrl, function (err, html) {
+        try {
+          var fs = require('fs');
+          var logMsg = new Date().toISOString() + ': fetchVidxgoPage finished: err=' + (err ? err.message : 'null') + ' htmlLength=' + (html ? html.length : 0) + ' preview=' + (html ? html.substring(0, 200).replace(/\n/g, ' ') : '') + '\n';
+          fs.appendFileSync('vd_run_log.txt', logMsg);
+        } catch(e) {}
+
+        if (err || !html) {
+          return resolve([]);
+        }
+
+        var decoded = decodeXorBlocks(html) || tryFallbackDecode(html);
+        if (!decoded) {
+          return resolve([]);
+        }
+
+        var masterUrl = extractMasterUrl(decoded);
+        if (!masterUrl) {
+          return resolve([]);
+        }
+
+        var subtitles = extractSubtitles(decoded);
+        var streamUrl = buildProxyUrl(masterUrl);
+
+        var stream = {
+          name: 'Vidxgo',
+          title: 'Vidxgo' + (isSeries ? (' S' + (Number(season) || 1) + 'E' + (Number(episode) || 1)) : ''),
+          url: streamUrl,
+          behaviorHints: {
+            notWebReady: true,
+            bingeGroup: 'vidxgo-' + imdbId
+          }
+        };
+
+        if (subtitles && subtitles.length > 0) {
+          stream.subtitles = subtitles;
+        }
+
+        resolve([stream]);
+      });
+    });
+  });
 }
 
 function fetchVidxgoPage(url, cb) {
