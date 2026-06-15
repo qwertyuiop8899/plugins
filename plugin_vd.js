@@ -132,9 +132,15 @@ function getStreams(id, type, season, episode) {
 function fetchVidxgoPage(url, cb) {
   var proxyUrl = 'https://vidclick.leanhhu061208-775.workers.dev/?url=' + encodeURIComponent(url);
   var headers = {
-    'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64; rv:150.0) Gecko/20100101 Firefox/150.0',
+    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Safari/537.36',
     'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
     'Accept-Language': 'en-US,en;q=0.9',
+    'Sec-CH-UA': '"Chromium";v="137", "Google Chrome";v="137", "Not/A)Brand";v="24"',
+    'Sec-CH-UA-Mobile': '?0',
+    'Sec-CH-UA-Platform': '"Windows"',
+    'Sec-CH-UA-Model': '""',
+    'Sec-CH-UA-Platform-Version': '"15.0.0"',
+    'Sec-CH-UA-Full-Version-List': '"Chromium";v="137.0.7151.104", "Google Chrome";v="137.0.7151.104", "Not/A)Brand";v="24.0.0.0"',
     'Referer': 'https://altadefinizione.you/',
     'Sec-GPC': '1',
     'Connection': 'keep-alive',
