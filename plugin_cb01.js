@@ -66,23 +66,19 @@ function searchCB01(title, year, mediaType, season, episode, cb) {
 
 function findBestMatch(html, title, year, cb) {
   var lowerTitle = title.toLowerCase().replace(/[^a-z0-9\s]/g, '').trim();
+  var titleTokens = lowerTitle.split(/\s+/).filter(Boolean);
   var candidates = [];
 
-  var cardRegex = /<div[^>]*class="[^"]*card-content[^"]*"[^>]*>([\s\S]*?)<\/div>\s*<\/div>/gi;
+  var cardRegex = /<div[^>]+class="[^"]*card-content[^"]*"[\s\S]*?<h3[^>]+class="[^"]*card-title[^"]*"[\s\S]*?<a[^>]+href=["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi;
   var cardMatch;
   while ((cardMatch = cardRegex.exec(html)) !== null) {
-    var cardHtml = cardMatch[1];
-    var linkMatch = cardHtml.match(/<h3[^>]*class="[^"]*card-title[^"]*"[^>]*>[\s\S]*?<a[^>]+href=["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/i);
-    if (!linkMatch) continue;
-    var href = linkMatch[1];
-    var linkText = (linkMatch[2] || '').replace(/<[^>]+>/g, '').toLowerCase().trim();
-    var text = linkText + ' ' + cardHtml.toLowerCase();
+    var href = cardMatch[1];
+    var linkText = (cardMatch[2] || '').replace(/<[^>]+>/g, '').toLowerCase().trim();
     var score = 0;
-    var titleTokens = lowerTitle.split(/\s+/).filter(Boolean);
     for (var i = 0; i < titleTokens.length; i++) {
-      if (text.indexOf(titleTokens[i]) >= 0) score += 3;
+      if (linkText.indexOf(titleTokens[i]) >= 0) score += 3;
     }
-    if (year && text.indexOf(String(year)) >= 0) score += 5;
+    if (year && linkText.indexOf(String(year)) >= 0) score += 5;
     if (score > 0) {
       candidates.push({ url: href, score: score });
     }
