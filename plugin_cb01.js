@@ -320,30 +320,114 @@ function processStayonlineUrl(stayUrl, quality, cb) {
   });
 }
 
+function pad2(n) { n = String(n); return n.length >= 2 ? n : ('0' + n); }
+
+function findEpisodeBlock(html, season, episode) {
+  var ep2 = pad2(episode);
+  var s = String(season);
+  var s2 = pad2(season);
+
+  // Build patterns to find episode label
+  var epLabels = [
+    '(?:' + s + '|' + s2 + ')\\s*(?:x|×|&#215;)\\s*0?' + episode,
+    'S0?' + s + 'E' + ep2,
+    'STAGIONE\\s+' + season + '\\s*-\\s*EPISODIO\\s+' + episode + '\\b'
+  ];
+
+  var epIdx = -1;
+  var epMatch = null;
+
+  for (var i = 0; i < epLabels.length && epIdx < 0; i++) {
+    var epRe = new RegExp(epLabels[i], 'i');
+    var m = epRe.exec(html);
+    if (m) {
+      epIdx = m.index;
+      epMatch = m[0];
+    }
+  }
+
+  if (epIdx < 0) {
+    // Fallback: old accordion format: <div class="sp-head">...STAGIONE N...</div> ... <div class="sp-body">
+    var spHeadRe = new RegExp('<div[^>]+class="[^"]*sp-head[^"]*"[^>]*>(?:[\\s\\S]*?)\\bSTAGIONE\\s+0?' + season + '\\b[\\s\\S]*?<div[^>]+class="[^"]*sp-body[^"]*"[^>]*>([\\s\\S]*?)<div[^>]+class="[^"]*spdiv[^"]*"', 'i');
+    var spMatch = html.match(spHeadRe);
+    return spMatch ? spMatch[1] : null;
+  }
+
+  // Find the next section header after the episode label
+  var sectionRe = /<p\b|<tr\b|<div\s+class="(?:sp-head|spdiv)"|<br\s*\/?>\s*<br\s*\/?>/gi;
+  var nextIdx = -1;
+  var searchStart = epIdx + epMatch.length;
+
+  sectionRe.lastIndex = searchStart;
+  var secMatch = sectionRe.exec(html);
+  if (secMatch) {
+    nextIdx = secMatch.index;
+  }
+
+  // Slice the block: from label to next section header (or end of string)
+  var epBlock = html.substring(searchStart, nextIdx >= 0 ? nextIdx : html.length).trim();
+
+  // Re-prepend the stream section context: sometimes tables PRECEDE the label
+  // Search backwards from epIdx to find the nearest <table cbtable> before the label
+  // and include everything from that table forward
+  var tableBefore = html.lastIndexOf('<table', epIdx);
+  if (tableBefore >= 0) {
+    var between = html.substring(tableBefore, epIdx);
+    // Only include table before label if it's close (within 200 chars) and contains streaming
+    if (between.length < 200 && /streaming/i.test(between)) {
+      return html.substring(tableBefore, nextIdx >= 0 ? nextIdx : html.length);
+    }
+  }
+
+  return epBlock;
+}
+
+function extractTables(html) {
+  var tables = html.match(/<table[^>]*>[\s\S]*?<\/table>/gi) || [];
+  var sections = [];
+  var currentQuality = null;
+
+  for (var i = 0; i < tables.length; i++) {
+    var lower = tables[i].replace(/<[^>]+>/g, '').toLowerCase().trim();
+    if (lower.indexOf('streaming') >= 0) {
+      if (lower.indexOf('hd') >= 0) {
+        currentQuality = '1080p';
+      } else {
+        currentQuality = '720p';
+      }
+      continue;
+    }
+    if (currentQuality && tables[i].indexOf('tableinside') >= 0) {
+      var linkMatch = tables[i].match(/<a[^>]+href="([^"]*stayonline\.pro[^"]*)"/i);
+      if (linkMatch) {
+        sections.push({ url: linkMatch[1], quality: currentQuality });
+      }
+    }
+  }
+  return sections;
+}
+
 function extractFromPage(pageUrl, season, episode, cb) {
   cb01Fetch(pageUrl, function (err, html) {
     if (err || !html) return cb([]);
 
-    var tables = html.match(/<table[^>]*>[\s\S]*?<\/table>/gi) || [];
-    var sections = [];
-    var currentQuality = null;
+    var isSeries = (season !== undefined && season > 0) || (episode !== undefined && episode > 0);
+    var targetHtml = html;
 
-    for (var i = 0; i < tables.length; i++) {
-      var lower = tables[i].replace(/<[^>]+>/g, '').toLowerCase().trim();
-      if (lower.indexOf('streaming') >= 0) {
-        if (lower.indexOf('hd') >= 0) {
-          currentQuality = '1080p';
-        } else {
-          currentQuality = '720p';
-        }
-        continue;
+    if (isSeries) {
+      var block = findEpisodeBlock(html, season, episode);
+      if (!block) {
+        console.log("[CB01] episode block not found for S" + season + "E" + episode + " — trying full page");
+      } else {
+        targetHtml = block;
       }
-      if (currentQuality && tables[i].indexOf('tableinside') >= 0) {
-        var linkMatch = tables[i].match(/<a[^>]+href="([^"]*stayonline\.pro[^"]*)"/i);
-        if (linkMatch) {
-          sections.push({ url: linkMatch[1], quality: currentQuality });
-        }
-      }
+    }
+
+    var sections = extractTables(targetHtml);
+
+    if (sections.length === 0 && isSeries && targetHtml !== html) {
+      // Fallback: try full page for older format
+      sections = extractTables(html);
     }
 
     if (sections.length === 0) return cb([]);
