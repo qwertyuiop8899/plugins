@@ -323,13 +323,21 @@ function processStayonlineUrl(stayUrl, quality, cb) {
 function pad2(n) { n = String(n); return n.length >= 2 ? n : ('0' + n); }
 
 function findEpisodeBlock(html, season, episode) {
+  var bodyIdx = html.indexOf('</head>');
+  if (bodyIdx >= 0) html = html.substring(bodyIdx);
+
+  // Strip script, style and comment blocks
+  html = html.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '');
+  html = html.replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, '');
+  html = html.replace(/<!--[\s\S]*?-->/g, '');
+
   var ep2 = pad2(episode);
   var s = String(season);
   var s2 = pad2(season);
 
   // Build patterns to find episode label
   var epLabels = [
-    '(?:' + s + '|' + s2 + ')\\s*(?:x|×|&#215;)\\s*0?' + episode,
+    '(?:' + s + '|' + s2 + ')\\s*(?:x|×|&#215;)\\s*0?' + episode + '(?!\\d)',
     'S0?' + s + 'E' + ep2,
     'STAGIONE\\s+' + season + '\\s*-\\s*EPISODIO\\s+' + episode + '\\b'
   ];
@@ -413,9 +421,10 @@ function extractFromPage(pageUrl, season, episode, cb) {
 
     var isSeries = (season !== undefined && season > 0) || (episode !== undefined && episode > 0);
     var targetHtml = html;
+    var block = null;
 
     if (isSeries) {
-      var block = findEpisodeBlock(html, season, episode);
+      block = findEpisodeBlock(html, season, episode);
       if (!block) {
         console.log("[CB01] episode block not found for S" + season + "E" + episode + " — trying full page");
       } else {
@@ -428,6 +437,26 @@ function extractFromPage(pageUrl, season, episode, cb) {
     if (sections.length === 0 && isSeries && targetHtml !== html) {
       // Fallback: try full page for older format
       sections = extractTables(html);
+    }
+
+    if (sections.length === 0) {
+      // Fallback: extract all stayonline links directly from block/html (accordion/vecchio formato)
+      var linkRe = /href=["'](https?:\/\/[^"']*stayonline\.pro\/[^"']*)["']/gi;
+      var match;
+      var seen = {};
+      var defaultQuality = '720p';
+      var blockUpper = (block || html).toUpperCase();
+      if (blockUpper.indexOf('STREAMING HD:') >= 0 || html.toUpperCase().indexOf('STAGIONE ' + season + ' - ITA - HD') >= 0 || html.toUpperCase().indexOf('STAGIONE ' + season + ' - SUB - HD') >= 0) {
+        defaultQuality = '1080p';
+      }
+
+      while ((match = linkRe.exec(targetHtml)) !== null) {
+        var u = match[1];
+        if (!seen[u]) {
+          seen[u] = true;
+          sections.push({ url: u, quality: defaultQuality });
+        }
+      }
     }
 
     if (sections.length === 0) return cb([]);
