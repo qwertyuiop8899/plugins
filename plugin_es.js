@@ -14,6 +14,9 @@ var MD_HOSTS = [
   'm1xdrop.net', 'mxdrop.net', 'miixdrop.net'
 ];
 
+// Relaxed MixDrop hostname pattern (covers mi×drop, m1x_drop, etc.)
+var MD_PAT = 'm[i1!ì]{1,2}[x×][ _-]?d[r]{1,2}[o0ø][ _-]?p';
+
 // =========================================================================
 // HELPERS
 // =========================================================================
@@ -246,110 +249,143 @@ function _pngDecode(b64) {
 }
 
 // =========================================================================
-// CAPTCHA OCR - 5x7 digit template matching
+// CAPTCHA OCR - native 10x10 template matching (all digits confirmed by user)
 // =========================================================================
-// 5x7 bitmap templates for digits 0-9 (1=black, 0=white)
-var DIGIT_TEMPLATES = [
-  // 0
-  [
-    [0,1,1,1,0],
-    [1,0,0,0,1],
-    [1,0,0,0,1],
-    [1,0,0,0,1],
-    [1,0,0,0,1],
-    [1,0,0,0,1],
-    [0,1,1,1,0]
-  ],
-  // 1
-  [
-    [0,0,1,0,0],
-    [0,1,1,0,0],
-    [0,0,1,0,0],
-    [0,0,1,0,0],
-    [0,0,1,0,0],
-    [0,0,1,0,0],
-    [0,1,1,1,0]
-  ],
-  // 2
-  [
-    [0,1,1,1,0],
-    [1,0,0,0,1],
-    [0,0,0,0,1],
-    [0,0,0,1,0],
-    [0,0,1,0,0],
-    [0,1,0,0,0],
-    [1,1,1,1,1]
-  ],
-  // 3
-  [
-    [1,1,1,1,0],
-    [0,0,0,0,1],
-    [0,0,0,0,1],
-    [0,1,1,1,0],
-    [0,0,0,0,1],
-    [0,0,0,0,1],
-    [1,1,1,1,0]
-  ],
-  // 4
-  [
-    [0,0,0,1,0],
+// Full pixel data for all 10 digits (1=black, 0=white), 10 rows each.
+// The captcha font is always the same fixed bitmap font.
+// Format: data[d] = { w: width, pixels: [[row0],[row1],...] }
+
+var DIGIT_PIXELS = [
+  // 0 (w=8)
+  { w: 8, pixels: [
+    [0,0,0,1,1,0,0,0],
+    [0,0,1,1,1,1,0,0],
+    [0,1,1,0,0,1,1,0],
+    [1,1,0,0,0,0,1,1],
+    [1,1,0,0,0,0,1,1],
+    [1,1,0,0,0,0,1,1],
+    [1,1,0,0,0,0,1,1],
+    [0,1,1,0,0,1,1,0],
+    [0,0,1,1,1,1,0,0],
+    [0,0,0,1,1,0,0,0]
+  ]},
+  // 1 (w=3)
+  { w: 3, pixels: [
+    [0,1,1],
+    [1,1,1],
+    [1,1,1],
+    [0,1,1],
+    [0,1,1],
+    [0,1,1],
+    [0,1,1],
+    [0,1,1],
+    [0,1,1],
+    [1,1,1]
+  ]},
+  // 2 (w=7)
+  { w: 7, pixels: [
+    [0,1,1,1,1,0,0],
+    [1,1,0,0,1,1,0],
+    [1,0,0,0,0,1,1],
+    [0,0,0,0,0,1,1],
+    [0,0,0,0,1,1,0],
+    [0,0,0,1,1,0,0],
+    [0,0,1,1,0,0,0],
+    [0,1,1,0,0,0,0],
+    [1,1,0,0,0,0,0],
+    [1,1,1,1,1,1,1]
+  ]},
+  // 3 (w=5)
+  { w: 5, pixels: [
+    [1,1,1,0,0],
     [0,0,1,1,0],
-    [0,1,0,1,0],
-    [1,0,0,1,0],
-    [1,1,1,1,1],
-    [0,0,0,1,0],
-    [0,0,0,1,0]
-  ],
-  // 5
-  [
-    [1,1,1,1,1],
-    [1,0,0,0,0],
-    [1,0,0,0,0],
-    [1,1,1,1,0],
-    [0,0,0,0,1],
-    [0,0,0,0,1],
-    [1,1,1,1,0]
-  ],
-  // 6
-  [
-    [0,1,1,1,0],
-    [1,0,0,0,1],
-    [1,0,0,0,0],
-    [1,1,1,1,0],
-    [1,0,0,0,1],
-    [1,0,0,0,1],
-    [0,1,1,1,0]
-  ],
-  // 7
-  [
-    [1,1,1,1,1],
-    [0,0,0,0,1],
-    [0,0,0,1,0],
-    [0,0,1,0,0],
-    [0,0,1,0,0],
-    [0,1,0,0,0],
-    [0,1,0,0,0]
-  ],
-  // 8
-  [
-    [0,1,1,1,0],
-    [1,0,0,0,1],
-    [1,0,0,0,1],
-    [0,1,1,1,0],
-    [1,0,0,0,1],
-    [1,0,0,0,1],
-    [0,1,1,1,0]
-  ],
-  // 9
-  [
-    [0,1,1,1,0],
-    [1,0,0,0,1],
-    [1,0,0,0,1],
-    [0,1,1,1,1],
-    [0,0,0,0,1],
-    [1,0,0,0,1],
-    [0,1,1,1,0]
-  ]
+    [0,0,0,1,1],
+    [0,0,1,1,0],
+    [1,1,1,0,0],
+    [0,0,1,1,0],
+    [0,0,0,1,1],
+    [0,0,0,1,1],
+    [0,0,1,1,0],
+    [1,1,1,0,0]
+  ]},
+  // 4 (w=6)
+  { w: 6, pixels: [
+    [0,0,0,0,1,1],
+    [0,0,0,1,1,1],
+    [0,0,1,1,1,1],
+    [0,1,1,0,1,1],
+    [1,1,0,0,1,1],
+    [1,0,0,0,1,1],
+    [1,1,1,1,1,1],
+    [0,0,0,0,1,1],
+    [0,0,0,0,1,1],
+    [0,0,0,0,1,1]
+  ]},
+  // 5 (w=8)
+  { w: 8, pixels: [
+    [1,1,1,1,1,1,1,0],
+    [1,1,0,0,0,0,0,0],
+    [1,1,0,0,0,0,0,0],
+    [1,1,0,1,1,1,0,0],
+    [1,1,1,0,0,1,1,0],
+    [0,0,0,0,0,0,1,1],
+    [0,0,0,0,0,0,1,1],
+    [1,1,0,0,0,0,1,1],
+    [0,1,1,0,0,1,1,0],
+    [0,0,1,1,1,1,0,0]
+  ]},
+  // 6 (w=7)
+  { w: 7, pixels: [
+    [0,0,1,1,1,1,0],
+    [0,1,1,0,0,1,1],
+    [1,1,0,0,0,0,1],
+    [1,1,0,0,0,0,0],
+    [1,1,0,1,1,1,0],
+    [1,1,1,0,0,1,1],
+    [1,1,0,0,0,0,1],
+    [1,1,0,0,0,0,1],
+    [0,1,1,0,0,1,1],
+    [0,0,1,1,1,1,0]
+  ]},
+  // 7 (w=8)
+  { w: 8, pixels: [
+    [1,1,1,1,1,1,1,1],
+    [0,0,0,0,0,0,1,1],
+    [0,0,0,0,0,0,1,1],
+    [0,0,0,0,0,1,1,0],
+    [0,0,0,0,1,1,0,0],
+    [0,0,0,1,1,0,0,0],
+    [0,0,1,1,0,0,0,0],
+    [0,1,1,0,0,0,0,0],
+    [1,1,0,0,0,0,0,0],
+    [1,1,0,0,0,0,0,0]
+  ]},
+  // 8 (w=8)
+  { w: 8, pixels: [
+    [0,0,1,1,1,1,0,0],
+    [0,1,1,0,0,1,1,0],
+    [1,1,0,0,0,0,1,1],
+    [0,1,1,0,0,1,1,0],
+    [0,0,1,1,1,1,0,0],
+    [0,1,1,0,0,1,1,0],
+    [1,1,0,0,0,0,1,1],
+    [1,1,0,0,0,0,1,1],
+    [0,1,1,0,0,1,1,0],
+    [0,0,1,1,1,1,0,0]
+  ]},
+  // 9 (w=7)
+  { w: 7, pixels: [
+    [0,1,1,1,1,0,0],
+    [1,1,0,0,1,1,0],
+    [1,0,0,0,0,1,1],
+    [1,0,0,0,0,1,1],
+    [1,1,0,0,1,1,1],
+    [0,1,1,1,0,1,1],
+    [0,0,0,0,0,1,1],
+    [1,0,0,0,0,1,1],
+    [1,1,0,0,1,1,0],
+    [0,1,1,1,1,0,0]
+  ]}
 ];
 
 function _binarize(pixels, w, h, bpp) {
@@ -421,46 +457,74 @@ function _extractSegment(bin, seg, w, h) {
   return { data: data, w: segW, h: h };
 }
 
-function _resizeSegment(seg, tw, th) {
-  var resized = new Array(th);
-  for (var ty = 0; ty < th; ty++) {
-    resized[ty] = new Uint8Array(tw);
-    for (var tx = 0; tx < tw; tx++) {
-      var sx = Math.floor(tx * seg.w / tw);
-      var sy = Math.floor(ty * seg.h / th);
-      if (sx < seg.w && sy < seg.h) {
-        resized[ty][tx] = seg.data[sy][sx];
-      }
+function _cropSegVert(segData, segW, segH) {
+  var y1 = segH, y2 = 0;
+  for (var y = 0; y < segH; y++) {
+    for (var x = 0; x < segW; x++) {
+      if (segData[y][x]) { if (y < y1) y1 = y; if (y > y2) y2 = y; break; }
     }
   }
-  return resized;
+  if (y2 < y1) return null;
+  var cropH = y2 - y1 + 1;
+  var cropped = new Array(cropH);
+  for (var y = y1; y <= y2; y++) {
+    cropped[y - y1] = new Uint8Array(segW);
+    for (var x = 0; x < segW; x++) cropped[y - y1][x] = segData[y][x];
+  }
+  return { data: cropped, w: segW, h: cropH };
 }
 
-function _scoreDigit(candidate, template) {
-  var matches = 0;
-  for (var y = 0; y < 7; y++) {
-    for (var x = 0; x < 5; x++) {
-      if (candidate[y][x] === template[y][x]) matches++;
+function _digitMatchScore(segData, segW, segH, template) {
+  var tw = template.w;
+  var th = 10; // all templates are 10 rows
+  if (segH !== th) return 0; // height must match (after cropping)
+  // Determine which is shorter/longer in width
+  var sw = segW < tw ? segW : tw;
+  var lw = segW < tw ? tw : segW;
+  var shortData = segW < tw ? segData : template.pixels;
+  var longData = segW < tw ? template.pixels : segData;
+  var maxScore = 0;
+  for (var off = 0; off <= lw - sw; off++) {
+    var matches = 0;
+    for (var y = 0; y < th; y++) {
+      for (var x = 0; x < sw; x++) {
+        if (shortData[y][x] === longData[y][off + x]) matches++;
+      }
     }
+    var score = matches / (sw * th);
+    if (score > maxScore) maxScore = score;
   }
-  return matches / 35;
+  return maxScore;
 }
 
 function _classifyDigit(segData, segW, segH) {
-  // Rule: if width is very narrow (1-2px), it's likely "1"
-  if (segW <= 2) return 1;
-  // Resize to 5x7
-  var resized = _resizeSegment({ data: segData, w: segW, h: segH }, 5, 7);
+  if (segH <= 0) return -1;
+  var cropped = _cropSegVert(segData, segW, segH);
+  if (!cropped || cropped.h < 8) return -1;
+  var cw = cropped.w, ch = cropped.h;
   var bestScore = 0;
   var bestDigit = -1;
   for (var d = 0; d < 10; d++) {
-    var score = _scoreDigit(resized, DIGIT_TEMPLATES[d]);
+    var tmpl = DIGIT_PIXELS[d];
+    if (Math.abs(cw - tmpl.w) > 2) continue; // skip if width differs too much
+    var score = _digitMatchScore(cropped.data, cw, ch, tmpl);
     if (score > bestScore) {
       bestScore = score;
       bestDigit = d;
     }
   }
-  return bestScore > 0.45 ? bestDigit : -1;
+  if (bestScore >= 0.75) return bestDigit;
+  // Fallback: try width range ±3
+  for (var d2 = 0; d2 < 10; d2++) {
+    var tmpl2 = DIGIT_PIXELS[d2];
+    if (Math.abs(cw - tmpl2.w) > 3) continue;
+    var score2 = _digitMatchScore(cropped.data, cw, ch, tmpl2);
+    if (score2 > bestScore) {
+      bestScore = score2;
+      bestDigit = d2;
+    }
+  }
+  return bestScore >= 0.6 ? bestDigit : -1;
 }
 
 function _ocrSolve(imageB64) {
@@ -541,11 +605,22 @@ function _findProceedToVideoUrl(text) {
   // clicka.cc/tva/{id}    -> Turbovid
   // clicka.cc/amix/{id}   -> MixDrop
   var m = text.match(/https?:\/\/clicka\.cc\/(?:adelta|tva|amix)\/[^"'<>\s]+/i);
-  return m ? m[0] : null;
+  if (m) return m[0];
+  // Direct video host links (with TLD)
+  var dm = text.match(new RegExp('https?://[^\\s"\'>]*' + MD_PAT + '[^\\s"\'>]+', 'i'));
+  if (dm) return dm[0];
+  var dt = text.match(/https?:\/\/[^\s"'>]*?deltabit\.[a-z]+\/[A-Za-z0-9]{6,}/i);
+  if (dt) return dt[0];
+  var tv = text.match(/https?:\/\/[^\s"'>]*?turbovid\.[a-z]+\/[A-Za-z0-9]{6,}/i);
+  if (tv) return tv[0];
+  // "Proceed to video" button/link
+  var aM = text.match(/<a\b[^>]*href=["']([^"']+)["'][^>]*>[\s\S]*?Proceed\s*to\s*video/i);
+  return aM ? aM[1] : null;
 }
 
 function _findMixdropUrl(text) {
-  var m = text.match(/https?:\/\/(?:[a-z0-9.-]+\.)?(?:mixdrop|m1?xdrop|miixdrop|mxdrop)[a-z0-9.\-]*\/(?:e|f|emb|embed)\/([A-Za-z0-9]+)/i);
+  var re = new RegExp('https?://[^\\s"\'>]*' + MD_PAT + '[^\\s"\'>]*/(?:e|f|emb|embed)/([A-Za-z0-9]+)', 'i');
+  var m = text.match(re);
   return m ? { url: m[0], id: m[1] } : null;
 }
 
@@ -631,7 +706,7 @@ function _isTurbovidHost(url) {
 function _isMixdropHost(url) {
   try {
     var h = new URL(url).host.toLowerCase();
-    return /m[a-z0-9]{0,3}x[a-z0-9]{0,3}d[a-z0-9]{0,2}r[a-z0-9]{0,2}[oa]?p{0,3}/.test(h);
+    return new RegExp(MD_PAT).test(h);
   } catch(e) { return false; }
 }
 
@@ -972,7 +1047,6 @@ function extractDeltabit(pageUrl) {
 // =========================================================================
 function _followRedirector(url, referer) {
   return _clickaFetch(url, referer).then(function(res) {
-    // Try to extract upstream URL from the page body
     var text = res.text;
     // Meta refresh
     var metaM = text.match(/<meta[^>]+http-equiv=["']?refresh["']?[^>]+url=["']?([^"'>\s]+)/i);
@@ -983,11 +1057,14 @@ function _followRedirector(url, referer) {
     // Canonical
     var canM = text.match(/<link[^>]+rel=["']?canonical["']?[^>]+href=["']([^"']+)["']/i);
     if (canM) return canM[1];
-    // Form action pointing to deltabit/turbovid/mixdrop
-    var formM = text.match(/<form[^>]+action=["'](https?:\/\/(?:[a-z0-9.-]+\.)?(?:deltabit|turbovid|mixdrop|m1xdrop|mxdrop)[^"']+)["']/i);
-    if (formM) return formM[1];
+    // Form action - relative or absolute, resolve against current URL
+    var formM = text.match(/<form[^>]+action=["']([^"']+)["']/i);
+    if (formM && formM[1] && formM[1] !== '#') {
+      var actionUrl = _resolveUrl(formM[1], res.url || url);
+      if (actionUrl) return actionUrl;
+    }
     // Direct link to deltabit/turbovid/mixdrop
-    var dlM = text.match(/https?:\/\/(?:[a-z0-9.-]+\.)?(?:deltabit|turbovid|mixdrop|m1?xdrop|miixdrop|mxdrop)\.[a-z]+\/[A-Za-z0-9]{6,}/i);
+    var dlM = text.match(new RegExp('https?://[^\\s"\'>]*(?:deltabit|turbovid|' + MD_PAT + ')[^\\s"\'>]*', 'i'));
     if (dlM) return dlM[0];
     // Fallback to the response URL
     return res.url || url;
@@ -1253,9 +1330,9 @@ function extractLinksFromPage(domain, pageUrl, seasonNum, episodeNum, cb) {
     }
 
     // Extract direct MixDrop URLs (existing behavior)
-    var mdRegex = /https?:\/\/(?:mixdrop|m1xdrop|mxdrop)\.[a-z]+\/[A-Za-z0-9]+/gi;
+    var mdPatUrl = new RegExp('https?://[^\\s"\'>]*' + MD_PAT + '[^\\s"\'>]*/[A-Za-z0-9]+', 'gi');
     var mdMatch;
-    while ((mdMatch = mdRegex.exec(blockToSearch)) !== null) {
+    while ((mdMatch = mdPatUrl.exec(blockToSearch)) !== null) {
       var mdUrl = mdMatch[0];
       if (!seen[mdUrl]) {
         seen[mdUrl] = true;
@@ -1269,8 +1346,7 @@ function extractLinksFromPage(domain, pageUrl, seasonNum, episodeNum, cb) {
     }
 
     // Also search the entire page for mixdrop
-    var mdGlobalReg = /https?:\/\/(?:mixdrop|m1xdrop|mxdrop)\.[a-z]+\/[A-Za-z0-9]+/gi;
-    while ((mdMatch = mdGlobalReg.exec(html)) !== null) {
+    while ((mdMatch = mdPatUrl.exec(html)) !== null) {
       var mdGUrl = mdMatch[0];
       if (!seen[mdGUrl]) {
         seen[mdGUrl] = true;
@@ -1284,7 +1360,7 @@ function extractLinksFromPage(domain, pageUrl, seasonNum, episodeNum, cb) {
     }
 
     // Search for mixdrop URLs inside JavaScript strings/arrays
-    var jsMdMatch = html.match(/["'](https?:\/\/(?:mixdrop|m1xdrop|mxdrop)\.[a-z]+\/[A-Za-z0-9]+)["']/gi);
+    var jsMdMatch = html.match(new RegExp('["\'](https?://[^\\s"\'>]*' + MD_PAT + '[^\\s"\'>]*/[A-Za-z0-9]+)["\']', 'gi'));
     if (jsMdMatch) {
       jsMdMatch.forEach(function (m) {
         var url = m.replace(/["']/g, '');
