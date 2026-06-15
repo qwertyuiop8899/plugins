@@ -201,17 +201,15 @@ function extractSubtitles(decodedJs) {
   }
 }
 
+function encodeB64Url(str) {
+  return Buffer.from(str, 'utf8').toString('base64')
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_')
+    .replace(/=+$/, '');
+}
+
 function buildProxyUrl(masterUrl) {
-  var headers = {
-    'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64; rv:150.0) Gecko/20100101 Firefox/150.0',
-    'Accept': '*/*',
-    'Accept-Language': 'en-US,en;q=0.9',
-    'Referer': 'https://v.vidxgo.co/',
-    'Origin': 'https://v.vidxgo.co',
-    'DNT': '1'
-  };
-  var headersB64 = Buffer.from(JSON.stringify(headers)).toString('base64');
-  return '/nuvio/m3u8-proxy?url=' + encodeURIComponent(masterUrl) + '&headers=' + encodeURIComponent(JSON.stringify(headers));
+  return '/clone/manifest.m3u8?d=' + encodeB64Url(masterUrl);
 }
 
 module.exports = { getStreams: getStreams };
