@@ -86,62 +86,82 @@ function _jarGet(url) {
 function _jarClear() { _cookieJar = {}; }
 
 // =========================================================================
-// CLICKA.CC FETCH WRAPPERS (with cookie persistence)
+// CLICKA.CC FETCH WRAPPERS (manual redirect following + cookie persistence)
 // =========================================================================
-function _clickaFetch(url, referer) {
+function _extractCookies(r, finalUrl) {
+  try {
+    if (!r.headers) return;
+    // Try modern getSetCookie() first
+    var all = typeof r.headers.getSetCookie === 'function' ? r.headers.getSetCookie() : null;
+    if (all && all.length) {
+      for (var i = 0; i < all.length; i++) _jarSet(finalUrl, all[i]);
+      return;
+    }
+    // Fallback: iterate all headers
+    if (typeof r.headers.forEach === 'function') {
+      r.headers.forEach(function(v, k) {
+        if (k.toLowerCase() === 'set-cookie') _jarSet(finalUrl, v);
+      });
+    } else if (typeof r.headers.get === 'function') {
+      var sc = r.headers.get('set-cookie') || r.headers.get('Set-Cookie');
+      if (sc) _jarSet(finalUrl, sc);
+    }
+  } catch(e) {}
+}
+
+function _follow(url, options, maxHops) {
   return new Promise(function(resolve, reject) {
-    var headers = {
-      'User-Agent': ES_UA,
-      'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-      'Accept-Language': 'it-IT,it;q=0.9,en-US;q=0.8,en;q=0.7',
-      'Accept-Encoding': 'identity'
-    };
-    if (referer) headers['Referer'] = referer;
-    var cookieStr = _jarGet(url);
-    if (cookieStr) headers['Cookie'] = cookieStr;
-    fetch(url, { headers: headers, timeout: 20000 })
-      .then(function(r) {
-        try {
-          if (r.headers && r.headers.get) {
-            var sc = r.headers.get('set-cookie') || r.headers.get('Set-Cookie');
-            if (sc) _jarSet(r.url || url, sc);
+    var hops = 0;
+    function doFetch(curUrl) {
+      if (hops++ > maxHops) return reject(new Error('Too many redirects'));
+      var fetchOpts = {};
+      for (var k in options) fetchOpts[k] = options[k];
+      var cookieStr = _jarGet(curUrl);
+      if (cookieStr) {
+        fetchOpts.headers = fetchOpts.headers || {};
+        fetchOpts.headers['Cookie'] = cookieStr;
+      }
+      fetch(curUrl, fetchOpts).then(function(r) {
+        var finalUrl = r.url || curUrl;
+        _extractCookies(r, finalUrl);
+        if (r.status >= 300 && r.status < 400 && r.status !== 304) {
+          var loc = r.headers.get('location');
+          if (loc) {
+            var nextUrl = loc.indexOf('://') >= 0 ? loc : _resolveUrl(loc, finalUrl);
+            if (nextUrl && nextUrl !== curUrl) return doFetch(nextUrl);
           }
-        } catch(e) {}
+        }
         return r.text().then(function(text) {
-          resolve({ ok: r.ok, status: r.status, text: text, url: r.url || url });
+          resolve({ ok: true, status: r.status, text: text, url: finalUrl });
         });
-      })
-      .catch(function(err) { reject(err); });
+      }).catch(function(err) { reject(err); });
+    }
+    doFetch(url);
   });
 }
 
+function _clickaFetch(url, referer) {
+  var headers = {
+    'User-Agent': ES_UA,
+    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+    'Accept-Language': 'it-IT,it;q=0.9,en-US;q=0.8,en;q=0.7',
+    'Accept-Encoding': 'identity'
+  };
+  if (referer) headers['Referer'] = referer;
+  return _follow(url, { headers: headers }, 7);
+}
+
 function _clickaPost(url, formData, referer) {
-  return new Promise(function(resolve, reject) {
-    var headers = {
-      'User-Agent': ES_UA,
-      'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-      'Accept-Language': 'it-IT,it;q=0.9,en-US;q=0.8,en;q=0.7',
-      'Content-Type': 'application/x-www-form-urlencoded'
-    };
-    try { headers['Origin'] = new URL(url).origin; } catch(e) {}
-    if (referer) headers['Referer'] = referer;
-    var cookieStr = _jarGet(url);
-    if (cookieStr) headers['Cookie'] = cookieStr;
-    var body = typeof formData === 'string' ? formData : _formEncode(formData);
-    fetch(url, { method: 'POST', headers: headers, body: body, timeout: 30000 })
-      .then(function(r) {
-        try {
-          if (r.headers && r.headers.get) {
-            var sc = r.headers.get('set-cookie') || r.headers.get('Set-Cookie');
-            if (sc) _jarSet(r.url || url, sc);
-          }
-        } catch(e) {}
-        return r.text().then(function(text) {
-          resolve({ ok: r.ok, status: r.status, text: text, url: r.url || url });
-        });
-      })
-      .catch(function(err) { reject(err); });
-  });
+  var headers = {
+    'User-Agent': ES_UA,
+    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+    'Accept-Language': 'it-IT,it;q=0.9,en-US;q=0.8,en;q=0.7',
+    'Content-Type': 'application/x-www-form-urlencoded'
+  };
+  try { headers['Origin'] = new URL(url).origin; } catch(e) {}
+  if (referer) headers['Referer'] = referer;
+  var body = typeof formData === 'string' ? formData : _formEncode(formData);
+  return _follow(url, { method: 'POST', headers: headers, body: body }, 7);
 }
 
 function _formEncode(obj) {
@@ -163,7 +183,7 @@ try { _zlib = require('zlib'); } catch(e) {}
 function _pngDecode(b64) {
   if (!_zlib) throw new Error('zlib not available');
   // Decode base64 to raw bytes
-  var raw = atob(b64);
+  var raw = (typeof atob !== 'undefined' ? atob(b64) : require('buffer').Buffer.from(b64, 'base64').toString('latin1'));
   var len = raw.length;
   var bytes = new Uint8Array(len);
   for (var i = 0; i < len; i++) bytes[i] = raw.charCodeAt(i) & 0xff;
@@ -554,7 +574,7 @@ function _hasCaptcha(text) {
 }
 
 function _captchaImageSrc(text) {
-  var m = text.match(/data:image\/(?:png|jpe?g);base64,[A-Za-z0-9+/=]+/i);
+  var m = text.match(/data:image\/(?:png|jpe?g);base64,[^"]+/i);
   return m ? m[0] : null;
 }
 
