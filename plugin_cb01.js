@@ -353,15 +353,15 @@ function findEpisodeBlock(html, season, episode) {
     return spMatch ? spMatch[1] : null;
   }
 
-  // Find the next section header after the episode label
-  var sectionRe = /<p\b|<tr\b|<div\s+class="(?:sp-head|spdiv)"|<br\s*\/?>\s*<br\s*\/?>/gi;
+  // Find the next episode header after the current one
+  var nextEpRe = /S\d+E\d+|S0?\d+E\d+|\d+\s*(?:x|×|&#215;)\s*\d+|<div\s+class="(?:sp-head|spdiv)"/gi;
   var nextIdx = -1;
   var searchStart = epIdx + epMatch.length;
 
-  sectionRe.lastIndex = searchStart;
-  var secMatch = sectionRe.exec(html);
-  if (secMatch) {
-    nextIdx = secMatch.index;
+  nextEpRe.lastIndex = searchStart;
+  var nextMatch = nextEpRe.exec(html);
+  if (nextMatch && nextMatch.index > epIdx) {
+    nextIdx = nextMatch.index;
   }
 
   // Slice the block: from label to next section header (or end of string)
