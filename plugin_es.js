@@ -775,7 +775,10 @@ function _solveCaptchaPage(text, currentUrl) {
     _clickaPost(action, formData, currentUrl)
       .then(function(postRes) {
         if (_hasCaptcha(postRes.text)) {
-          return reject(new Error('captcha still present after POST'));
+          var _pv = _findProceedToVideoUrl(postRes.text);
+          if (!_pv) {
+            return reject(new Error('captcha still present after POST'));
+          }
         }
         resolve({ text: postRes.text, url: action });
       })
