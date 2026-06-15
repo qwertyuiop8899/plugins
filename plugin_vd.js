@@ -1,20 +1,47 @@
 /* Vidxgo (vd) provider - Nuvio plugin
  * Movies and TV series. XOR-decodes blocks to extract master.m3u8 URL.
  */
+var Buffer = typeof Buffer !== 'undefined' ? Buffer : require('buffer').Buffer;
+
 function getStreams(id, type, season, episode) {
+  try {
+    var fs = require('fs');
+    var logMsg = new Date().toISOString() + ': getStreams called with id=' + id + ' type=' + type + '\n';
+    fs.appendFileSync('vd_run_log.txt', logMsg);
+  } catch(e) {}
+
   return new Promise(function (resolve, reject) {
+    try {
+      var fs = require('fs');
+      fs.appendFileSync('vd_run_log.txt', new Date().toISOString() + ': Promise executor started\n');
+    } catch(e) {}
+
     var tmdbId = String(id || '').replace(/^tmdb:/, '');
     var imdbId = (typeof __imdb_id !== 'undefined' ? __imdb_id : tmdbId);
     var mediaType = String(type || 'movie').toLowerCase();
     var isSeries = mediaType === 'series' || mediaType === 'tv';
 
+    try {
+      var fs = require('fs');
+      fs.appendFileSync('vd_run_log.txt', new Date().toISOString() + ': Variables defined. tmdbId=' + tmdbId + ' imdbId=' + imdbId + '\n');
+    } catch(e) {}
+
     // Try to get TMDB numeric ID (vidxgo uses TMDB IDs)
     function tryFetch(tryImdbId) {
+      try {
+        var fs = require('fs');
+        fs.appendFileSync('vd_run_log.txt', new Date().toISOString() + ': tryFetch started with ' + tryImdbId + '\n');
+      } catch(e) {}
+
       getCinemetaMeta(isSeries ? 'series' : 'movie', tryImdbId, function (err, meta) {
+        try {
+          var fs = require('fs');
+          fs.appendFileSync('vd_run_log.txt', new Date().toISOString() + ': getCinemetaMeta finished. meta=' + (meta ? JSON.stringify(meta) : 'null') + '\n');
+        } catch(e) {}
+
         var vid = tryImdbId;
-        if (meta && meta.moviedb_id) {
-          vid = String(meta.moviedb_id);
-        }
+        // Keep IMDb ID for Vidxgo (does not support TMDB IDs)
+
 
         var vdDomain = 'https://v.vidxgo.co';
         var pageUrl;
@@ -26,7 +53,18 @@ function getStreams(id, type, season, episode) {
           pageUrl = vdDomain + '/' + vid;
         }
 
+        try {
+          var fs = require('fs');
+          fs.appendFileSync('vd_run_log.txt', new Date().toISOString() + ': fetchVidxgoPage starting for ' + pageUrl + '\n');
+        } catch(e) {}
+
         fetchVidxgoPage(pageUrl, function (err, html) {
+          try {
+            var fs = require('fs');
+            var logMsg = new Date().toISOString() + ': fetchVidxgoPage finished: err=' + (err ? err.message : 'null') + ' htmlLength=' + (html ? html.length : 0) + ' preview=' + (html ? html.substring(0, 200).replace(/\n/g, ' ') : '') + '\n';
+            fs.appendFileSync('vd_run_log.txt', logMsg);
+          } catch(e) {}
+
           if (err || !html) {
             // If imdbId differs from tryImdbId and failed, retry with imdbId
             if (tryImdbId !== imdbId && imdbId) return tryFetch(imdbId);
@@ -80,15 +118,20 @@ function getCinemetaMeta(type, imdbId, cb) {
 }
 
 function fetchVidxgoPage(url, cb) {
+  var proxyUrl = 'https://vidclick.leanhhu061208-775.workers.dev/?url=' + encodeURIComponent(url);
   var headers = {
     'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64; rv:150.0) Gecko/20100101 Firefox/150.0',
     'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
     'Accept-Language': 'en-US,en;q=0.9',
     'Referer': 'https://altadefinizione.you/',
     'Sec-GPC': '1',
-    'DNT': '1'
+    'Connection': 'keep-alive',
+    'Upgrade-Insecure-Requests': '1',
+    'Sec-Fetch-Dest': 'iframe',
+    'Sec-Fetch-Mode': 'navigate',
+    'Sec-Fetch-Site': 'cross-site'
   };
-  fetch(url, { headers: headers, timeout: 20000 })
+  fetch(proxyUrl, { headers: headers, timeout: 20000 })
     .then(function (r) { return r.text(); })
     .then(function (html) { cb(null, html); })
     .catch(function (err) { cb(err, null); });
