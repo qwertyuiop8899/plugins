@@ -1,3 +1,19 @@
+var TMDB_API_KEY = '68e094699525b18a70bab2f86b1fa706';
+
+function _cbTmdbMeta(id) {
+  return new Promise(function(resolve) {
+    var numId = String(id).replace(/^tmdb:/, '').replace(/^tt\d+$/, '');
+    if (!/^\d+$/.test(numId)) return resolve(null);
+    fetch('https://api.themoviedb.org/3/tv/' + numId + '?api_key=' + TMDB_API_KEY + '&language=it-IT', { timeout: 10000 })
+      .then(function(r) { return r.ok ? r.json() : null; })
+      .then(function(data) {
+        if (!data) return resolve(null);
+        resolve({ name: data.name || data.original_name, releaseInfo: String(data.first_air_date || '').substring(0, 4) });
+      })
+      .catch(function() { resolve(null); });
+  });
+}
+
 function getStreams(id, type, season, episode) {
   return new Promise(function (resolve, reject) {
     var tmdbId = String(id || '').replace(/^tmdb:/, '');
@@ -5,15 +21,21 @@ function getStreams(id, type, season, episode) {
     var mediaType = String(type || 'movie').toLowerCase();
     var cinemetaType = mediaType === 'tv' ? 'series' : mediaType;
 
-    getCinemetaMeta(cinemetaType, imdbId, function (err, meta) {
-      if (!meta || !meta.name) return resolve([]);
-      var title = meta.name;
-      var year = meta.releaseInfo || '';
+    function doSearch(title, year) {
       searchCB01(title, year, mediaType, season, episode, function (pageUrl) {
         if (!pageUrl) return resolve([]);
         extractFromPage(pageUrl, season, episode, function (streams) {
           resolve(streams || []);
         });
+      });
+    }
+
+    getCinemetaMeta(cinemetaType, imdbId, function (err, meta) {
+      if (meta && meta.name) return doSearch(meta.name, meta.releaseInfo || '');
+      // Cinemeta failed — try TMDB API
+      _cbTmdbMeta(imdbId).then(function(tmdbMeta) {
+        if (tmdbMeta && tmdbMeta.name) return doSearch(tmdbMeta.name, tmdbMeta.releaseInfo || '');
+        resolve([]);
       });
     });
   });
