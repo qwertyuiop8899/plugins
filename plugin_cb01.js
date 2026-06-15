@@ -45,23 +45,40 @@ function cb01Fetch(url, cb) {
 function searchCB01(title, year, mediaType, season, episode, cb) {
   var isSeries = mediaType === 'series' || mediaType === 'tv';
   var searchPath = isSeries ? 'serietv/' : '';
-  var searchUrl = 'https://cb01uno.sbs/' + searchPath + '?s=' + encodeURIComponent(title);
-  cb01Fetch(searchUrl, function (err, html) {
-    if (err || !html) {
-      cb01Fetch('https://cb01uno.mom/' + searchPath + '?s=' + encodeURIComponent(title), function (err2, html2) {
-        if (err2 || !html2) return cb(null);
-        findBestMatch(html2, title, year, function (pageUrl) {
-          if (!pageUrl) return cb(null);
-          cb(pageUrl);
+  var searchTitles = [title];
+
+  var separatorMatch = title.match(/^([^:\-(]+)/);
+  if (separatorMatch) {
+    var shortTitle = separatorMatch[1].trim();
+    if (shortTitle && shortTitle !== title) searchTitles.push(shortTitle);
+  }
+  var firstWord = (title || '').split(/\s+/)[0];
+  if (firstWord && firstWord !== title && firstWord !== searchTitles[searchTitles.length-1]) {
+    searchTitles.push(firstWord);
+  }
+
+  var trySearch = function (idx) {
+    if (idx >= searchTitles.length) return cb(null);
+    var q = searchTitles[idx];
+    var searchUrl = 'https://cb01uno.sbs/' + searchPath + '?s=' + encodeURIComponent(q);
+    cb01Fetch(searchUrl, function (err, html) {
+      if (err || !html) {
+        cb01Fetch('https://cb01uno.mom/' + searchPath + '?s=' + encodeURIComponent(q), function (err2, html2) {
+          if (err2 || !html2) return trySearch(idx + 1);
+          findBestMatch(html2, q, year, function (pageUrl) {
+            if (!pageUrl) return trySearch(idx + 1);
+            cb(pageUrl);
+          });
         });
+        return;
+      }
+      findBestMatch(html, q, year, function (pageUrl) {
+        if (!pageUrl) return trySearch(idx + 1);
+        cb(pageUrl);
       });
-      return;
-    }
-    findBestMatch(html, title, year, function (pageUrl) {
-      if (!pageUrl) return cb(null);
-      cb(pageUrl);
     });
-  });
+  };
+  trySearch(0);
 }
 
 function findBestMatch(html, title, year, cb) {
@@ -237,32 +254,75 @@ function extractMixDrop(mdId, cb) {
   tryHost(0);
 }
 
+function isMixDropHost(url) {
+  var host = (url || '').replace(/^https?:\/\//i, '').replace(/\/.*$/, '').toLowerCase();
+  return /m[a-z0-9]{0,3}x[a-z0-9]{0,3}d[a-z0-9]{0,2}r[a-z0-9]{0,2}[oa]?p{0,3}/.test(host);
+}
+
+function unwrapStayonline(stayId, cb) {
+  var formBody = 'id=' + encodeURIComponent(stayId) + '&ref=';
+  fetch('https://stayonline.pro/ajax/linkEmbedView.php', {
+    method: 'POST',
+    headers: {
+      'User-Agent': USER_AGENT,
+      'Accept': 'application/json, text/javascript, */*; q=0.01',
+      'Origin': 'https://stayonline.pro',
+      'Referer': 'https://stayonline.pro/',
+      'X-Requested-With': 'XMLHttpRequest',
+      'Content-Type': 'application/x-www-form-urlencoded'
+    },
+    body: formBody,
+    timeout: 15000
+  })
+  .then(function (r) { return r.json(); })
+  .then(function (data) {
+    var value = (data.data && data.data.value) || data.value || '';
+    cb(null, value.trim() || null);
+  })
+  .catch(function (err) { cb(err, null); });
+}
+
+function processStayonlineUrl(stayUrl, cb) {
+  var stayIdMatch = stayUrl.match(/\/e\/([A-Za-z0-9]+)/);
+  if (!stayIdMatch) return cb(null);
+  unwrapStayonline(stayIdMatch[1], function (err, actualUrl) {
+    if (!actualUrl) return cb(null);
+    console.log('[CB01] Unwrapped: ' + actualUrl);
+    if (!isMixDropHost(actualUrl)) return cb(null);
+    var mdIdMatch = actualUrl.match(/\/e\/([A-Za-z0-9]+)/);
+    if (!mdIdMatch) return cb(null);
+    extractMixDrop(mdIdMatch[1], function (stream) {
+      cb(stream);
+    });
+  });
+}
+
 function extractFromPage(pageUrl, season, episode, cb) {
   cb01Fetch(pageUrl, function (err, html) {
     if (err || !html) return cb([]);
-    var streams = [];
-    var seen = {};
 
-    var iframeMatch = html.match(/<div[^>]+id=["']iframen2["'][^>]*data-src=["']([^"']+)["']/i);
-    var mdUrl = iframeMatch ? iframeMatch[1] : null;
+    var iframe2 = html.match(/<div[^>]+id=["']iframen2["'][^>]*data-src=["']([^"']+)["']/i);
+    var embedUrl = iframe2 ? iframe2[1] : null;
 
-    if (!mdUrl) {
-      iframeMatch = html.match(/<div[^>]+id=["']iframen1["'][^>]*data-src=["']([^"']+)["']/i);
-      mdUrl = iframeMatch ? iframeMatch[1] : null;
+    if (!embedUrl) {
+      var iframe1 = html.match(/<div[^>]+id=["']iframen1["'][^>]*data-src=["']([^"']+)["']/i);
+      embedUrl = iframe1 ? iframe1[1] : null;
     }
 
-    if (mdUrl) {
-      var mdIdMatch = mdUrl.match(/\/e\/([A-Za-z0-9]+)/);
-      if (mdIdMatch) {
-        extractMixDrop(mdIdMatch[1], function (stream) {
-          if (stream) streams.push(stream);
-          cb(streams.length > 0 ? streams : null);
-        });
-      } else {
-        cb(null);
-      }
+    if (!embedUrl) return cb([]);
+
+    if (embedUrl.indexOf('stayonline.pro') >= 0) {
+      processStayonlineUrl(embedUrl, function (stream) {
+        cb(stream ? [stream] : []);
+      });
+    } else if (isMixDropHost(embedUrl)) {
+      var mdIdMatch = embedUrl.match(/\/e\/([A-Za-z0-9]+)/);
+      if (!mdIdMatch) return cb([]);
+      extractMixDrop(mdIdMatch[1], function (stream) {
+        cb(stream ? [stream] : []);
+      });
     } else {
-      cb(null);
+      cb([]);
     }
   });
 }
