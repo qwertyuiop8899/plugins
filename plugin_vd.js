@@ -31,18 +31,7 @@ function _vdTmdbToImdb(tmdbId, type) {
 }
 
 function getStreams(id, type, season, episode) {
-  try {
-    var fs = require('fs');
-    var logMsg = new Date().toISOString() + ': getStreams called with id=' + id + ' type=' + type + '\n';
-    fs.appendFileSync('vd_run_log.txt', logMsg);
-  } catch(e) {}
-
   return new Promise(function (resolve, reject) {
-    try {
-      var fs = require('fs');
-      fs.appendFileSync('vd_run_log.txt', new Date().toISOString() + ': Promise executor started\n');
-    } catch(e) {}
-
     var cleanId = String(id || '').replace(/^tmdb:/, '');
     var mediaType = String(type || 'movie').toLowerCase();
     var isSeries = mediaType === 'series' || mediaType === 'tv';
@@ -51,10 +40,6 @@ function getStreams(id, type, season, episode) {
     var getImdbIdPromise;
     
     if (globalImdbId) {
-      try {
-        var fs = require('fs');
-        fs.appendFileSync('vd_run_log.txt', new Date().toISOString() + ': Using global __imdb_id: ' + globalImdbId + '\n');
-      } catch(e) {}
       getImdbIdPromise = Promise.resolve(globalImdbId);
     } else {
       getImdbIdPromise = _vdTmdbToImdb(cleanId, isSeries ? 'series' : 'movie');
@@ -65,11 +50,6 @@ function getStreams(id, type, season, episode) {
         imdbId = cleanId;
       }
       
-      try {
-        var fs = require('fs');
-        fs.appendFileSync('vd_run_log.txt', new Date().toISOString() + ': Resolved IMDb ID: ' + imdbId + '\n');
-      } catch(e) {}
-
       var vdDomain = 'https://v.vidxgo.co';
       var pageUrl;
       if (isSeries) {
@@ -80,17 +60,7 @@ function getStreams(id, type, season, episode) {
         pageUrl = vdDomain + '/' + imdbId;
       }
 
-      try {
-        var fs = require('fs');
-        fs.appendFileSync('vd_run_log.txt', new Date().toISOString() + ': fetchVidxgoPage starting for ' + pageUrl + '\n');
-      } catch(e) {}
-
       fetchVidxgoPage(pageUrl, function (err, html) {
-        try {
-          var fs = require('fs');
-          var logMsg = new Date().toISOString() + ': fetchVidxgoPage finished: err=' + (err ? err.message : 'null') + ' htmlLength=' + (html ? html.length : 0) + ' preview=' + (html ? html.substring(0, 200).replace(/\n/g, ' ') : '') + '\n';
-          fs.appendFileSync('vd_run_log.txt', logMsg);
-        } catch(e) {}
 
         if (err || !html) {
           return resolve([]);
