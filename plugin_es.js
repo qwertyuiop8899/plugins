@@ -894,7 +894,9 @@ function tryMixDropHosts(id) {
       return Promise.reject(new Error('MixDrop all hosts failed: ' + (lastErr || 'unknown')));
     }
     var host = MD_HOSTS[idx++];
-    return fetchMixDrop(host, id).catch(function(err) {
+    return fetchMixDrop(host, id).then(function(streamUrl) {
+      return { url: streamUrl, host: host };
+    }).catch(function(err) {
       lastErr = err.message;
       return next();
     });
@@ -1151,8 +1153,7 @@ function _followRedirector(url, referer) {
 // =========================================================================
 function resolveClickacc(startUrl, kind) {
   var current = startUrl;
-  var ES_DOMAIN = 'https://eurostreamings.makeup';
-  var referer = ES_DOMAIN + '/';
+  var referer = 'https://eurostreamings.forum/';
   function loop(hop) {
     if (hop >= 6) return Promise.reject(new Error('Clickacc: max hops reached'));
     // Check if current is a redirector URL (clicka.cc/adelta|tva|amix)
@@ -1174,8 +1175,17 @@ function resolveClickacc(startUrl, kind) {
     if (kind === 'mix' && _isMixdropHost(current)) {
       var mixMatch = current.match(/\/(?:e|f|emb|embed)\/([A-Za-z0-9]+)/i);
       if (mixMatch) {
-        return tryMixDropHosts(mixMatch[1]).then(function(streamUrl) {
-          return { url: streamUrl, name: 'Eurostreaming', title: 'MixDrop', behaviorHints: { notWebReady: true } };
+        return tryMixDropHosts(mixMatch[1]).then(function(res) {
+          return {
+            url: res.url,
+            name: 'Eurostreaming',
+            title: 'MixDrop',
+            behaviorHints: { notWebReady: true },
+            headers: {
+              'User-Agent': ES_UA,
+              'Referer': 'https://' + res.host + '/'
+            }
+          };
         }).catch(function() {
           return Promise.reject(new Error('MixDrop extraction failed'));
         });
@@ -1209,8 +1219,17 @@ function resolveClickacc(startUrl, kind) {
           // Check for mixdrop (kind=mix)
           if (kind === 'mix') {
             var md = _findMixdropUrl(text);
-            if (md) return tryMixDropHosts(md.id).then(function(streamUrl) {
-              return { url: streamUrl, name: 'Eurostreaming', title: 'MixDrop', behaviorHints: { notWebReady: true } };
+            if (md) return tryMixDropHosts(md.id).then(function(res) {
+              return {
+                url: res.url,
+                name: 'Eurostreaming',
+                title: 'MixDrop',
+                behaviorHints: { notWebReady: true },
+                headers: {
+                  'User-Agent': ES_UA,
+                  'Referer': 'https://' + res.host + '/'
+                }
+              };
             });
           }
           // Check for m3u8
@@ -1234,8 +1253,17 @@ function resolveClickacc(startUrl, kind) {
       // Check for mixdrop (kind=mix)
       if (kind === 'mix') {
         var md2 = _findMixdropUrl(text);
-        if (md2) return tryMixDropHosts(md2.id).then(function(streamUrl) {
-          return { url: streamUrl, name: 'Eurostreaming', title: 'MixDrop', behaviorHints: { notWebReady: true } };
+        if (md2) return tryMixDropHosts(md2.id).then(function(res) {
+          return {
+            url: res.url,
+            name: 'Eurostreaming',
+            title: 'MixDrop',
+            behaviorHints: { notWebReady: true },
+            headers: {
+              'User-Agent': ES_UA,
+              'Referer': 'https://' + res.host + '/'
+            }
+          };
         });
       }
       // Check for m3u8 inline
@@ -1366,7 +1394,7 @@ function esFetch(url, cb) {
     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/146.0.0.0 Safari/537.36',
     'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
     'Accept-Language': 'it-IT,it;q=0.9,en-US;q=0.8,en;q=0.7',
-    'Referer': 'https://eurostreamings.makeup/'
+    'Referer': 'https://eurostreamings.forum/'
   };
   fetch(url, { headers: headers, timeout: 15000 })
     .then(function (r) { return r.text(); })
@@ -1399,9 +1427,9 @@ function getEsDomain(cb) {
           }
         }
       }
-      cb('https://eurostreamings.makeup');
+      cb('https://eurostreamings.forum');
     })
-    .catch(function () { cb('https://eurostreamings.makeup'); });
+    .catch(function () { cb('https://eurostreamings.forum'); });
 }
 
 function searchSeries(domain, title, seasonNum, cb) {
