@@ -65,6 +65,21 @@ function _resolveUrl(href, base) {
   try { return new URL(href, base).href; } catch(e) { return null; }
 }
 
+function _buildProxyUrl(rawUrl, referer, ua, origin) {
+  try {
+    var urlObj = new URL(rawUrl);
+    var destOrigin = urlObj.origin;
+    var pathnameAndSearch = urlObj.pathname + urlObj.search;
+    var opts = 'd=' + encodeURIComponent(destOrigin) +
+               '&h=' + encodeURIComponent('User-Agent:' + (ua || ES_UA)) +
+               '&h=' + encodeURIComponent('Referer:' + referer);
+    if (origin) {
+      opts += '&h=' + encodeURIComponent('Origin:' + origin);
+    }
+    return '/proxy/' + opts + pathnameAndSearch;
+  } catch(e) { return rawUrl; }
+}
+
 function _sleep(ms) {
   return new Promise(function(r) { setTimeout(r, ms); });
 }
@@ -1181,14 +1196,10 @@ function resolveClickacc(startUrl, kind, jar) {
       if (mixMatch) {
         return tryMixDropHosts(mixMatch[1]).then(function(res) {
           return {
-            url: res.url,
+            url: _buildProxyUrl(res.url, 'https://' + res.host + '/', ES_UA),
             name: 'Eurostreaming',
             title: 'MixDrop',
-            behaviorHints: { notWebReady: true },
-            headers: {
-              'User-Agent': ES_UA,
-              'Referer': 'https://' + res.host + '/'
-            }
+            behaviorHints: { notWebReady: true }
           };
         }).catch(function() {
           return Promise.reject(new Error('MixDrop extraction failed'));
@@ -1197,12 +1208,22 @@ function resolveClickacc(startUrl, kind, jar) {
     }
     if (kind === 'tv' && _isTurbovidHost(current)) {
       return extractTurbovid(current, activeJar).then(function(video) {
-        return { url: video.url, name: 'Eurostreaming', title: 'Turbovid', behaviorHints: { notWebReady: true }, headers: video.headers };
+        return {
+          url: _buildProxyUrl(video.url, current, video.headers['User-Agent'], video.headers['Origin']),
+          name: 'Eurostreaming',
+          title: 'Turbovid',
+          behaviorHints: { notWebReady: true }
+        };
       });
     }
     if (kind === 'delta' && _isDeltabitHost(current)) {
       return extractDeltabit(current, activeJar).then(function(video) {
-        return { url: video.url, name: 'Eurostreaming', title: 'Deltabit', behaviorHints: { notWebReady: true }, headers: video.headers };
+        return {
+          url: _buildProxyUrl(video.url, current, video.headers['User-Agent'], video.headers['Origin']),
+          name: 'Eurostreaming',
+          title: 'Deltabit',
+          behaviorHints: { notWebReady: true }
+        };
       });
     }
     // Fetch current URL (captcha page, safego, etc.)
@@ -1225,14 +1246,10 @@ function resolveClickacc(startUrl, kind, jar) {
             var md = _findMixdropUrl(text);
             if (md) return tryMixDropHosts(md.id).then(function(res) {
               return {
-                url: res.url,
+                url: _buildProxyUrl(res.url, 'https://' + res.host + '/', ES_UA),
                 name: 'Eurostreaming',
                 title: 'MixDrop',
-                behaviorHints: { notWebReady: true },
-                headers: {
-                  'User-Agent': ES_UA,
-                  'Referer': 'https://' + res.host + '/'
-                }
+                behaviorHints: { notWebReady: true }
               };
             });
           }
@@ -1259,14 +1276,10 @@ function resolveClickacc(startUrl, kind, jar) {
         var md2 = _findMixdropUrl(text);
         if (md2) return tryMixDropHosts(md2.id).then(function(res) {
           return {
-            url: res.url,
+            url: _buildProxyUrl(res.url, 'https://' + res.host + '/', ES_UA),
             name: 'Eurostreaming',
             title: 'MixDrop',
-            behaviorHints: { notWebReady: true },
-            headers: {
-              'User-Agent': ES_UA,
-              'Referer': 'https://' + res.host + '/'
-            }
+            behaviorHints: { notWebReady: true }
           };
         });
       }
