@@ -76,7 +76,7 @@ function _isDigit(s) { return /^\d+$/.test(s); }
 // =========================================================================
 var _cookieJar = {};
 
-function _jarSet(url, setCookieHeader) {
+function _jarSet(url, setCookieHeader, jar) {
   if (!setCookieHeader) return;
   var parts = setCookieHeader.split(';');
   var first = parts[0].split('=');
@@ -94,20 +94,22 @@ function _jarSet(url, setCookieHeader) {
   if (!domain) {
     try { domain = new URL(url).hostname; } catch(e) { return; }
   }
-  if (!_cookieJar[domain]) _cookieJar[domain] = {};
-  _cookieJar[domain][name] = value;
+  var activeJar = jar || _cookieJar;
+  if (!activeJar[domain]) activeJar[domain] = {};
+  activeJar[domain][name] = value;
 }
 
-function _jarGet(url) {
+function _jarGet(url, jar) {
   try {
     var host = new URL(url).hostname;
     var parts = host.split('.');
     var cookies = [];
+    var activeJar = jar || _cookieJar;
     for (var i = 0; i < parts.length; i++) {
       var dom = parts.slice(i).join('.');
-      if (_cookieJar[dom]) {
-        for (var name in _cookieJar[dom]) {
-          cookies.push(name + '=' + _cookieJar[dom][name]);
+      if (activeJar[dom]) {
+        for (var name in activeJar[dom]) {
+          cookies.push(name + '=' + activeJar[dom][name]);
         }
       }
     }
@@ -120,35 +122,35 @@ function _jarClear() { _cookieJar = {}; }
 // =========================================================================
 // CLICKA.CC FETCH WRAPPERS (manual redirect following + cookie persistence)
 // =========================================================================
-function _extractCookies(r, finalUrl) {
+function _extractCookies(r, finalUrl, jar) {
   try {
     if (!r.headers) return;
     // Try modern getSetCookie() first
     var all = typeof r.headers.getSetCookie === 'function' ? r.headers.getSetCookie() : null;
     if (all && all.length) {
-      for (var i = 0; i < all.length; i++) _jarSet(finalUrl, all[i]);
+      for (var i = 0; i < all.length; i++) _jarSet(finalUrl, all[i], jar);
       return;
     }
     // Fallback: iterate all headers
     if (typeof r.headers.forEach === 'function') {
       r.headers.forEach(function(v, k) {
-        if (k.toLowerCase() === 'set-cookie') _jarSet(finalUrl, v);
+        if (k.toLowerCase() === 'set-cookie') _jarSet(finalUrl, v, jar);
       });
     } else if (typeof r.headers.get === 'function') {
       var sc = r.headers.get('set-cookie') || r.headers.get('Set-Cookie');
-      if (sc) _jarSet(finalUrl, sc);
+      if (sc) _jarSet(finalUrl, sc, jar);
     }
   } catch(e) {}
 }
 
-function _follow(url, options, maxHops) {
+function _follow(url, options, maxHops, jar) {
   return new Promise(function(resolve, reject) {
     var hops = 0;
     function doFetch(curUrl) {
       if (hops++ > maxHops) return reject(new Error('Too many redirects'));
       var fetchOpts = {};
       for (var k in options) fetchOpts[k] = options[k];
-      var cookieStr = _jarGet(curUrl);
+      var cookieStr = _jarGet(curUrl, jar);
       if (cookieStr) {
         fetchOpts.headers = fetchOpts.headers || {};
         fetchOpts.headers['Cookie'] = cookieStr;
@@ -175,7 +177,7 @@ function _follow(url, options, maxHops) {
 
       fetch(finalFetchUrl, { ...fetchOpts, redirect: 'manual' }).then(function(r) {
         var finalUrl = curUrl; 
-        _extractCookies(r, finalUrl);
+        _extractCookies(r, finalUrl, jar);
         if (r.status >= 300 && r.status < 400 && r.status !== 304) {
           var loc = r.headers.get('location');
           if (loc) {
@@ -192,7 +194,7 @@ function _follow(url, options, maxHops) {
   });
 }
 
-function _clickaFetch(url, referer) {
+function _clickaFetch(url, referer, jar) {
   var headers = {
     'User-Agent': ES_UA,
     'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
@@ -200,10 +202,10 @@ function _clickaFetch(url, referer) {
     'Accept-Encoding': 'identity'
   };
   if (referer) headers['Referer'] = referer;
-  return _follow(url, { headers: headers }, 7);
+  return _follow(url, { headers: headers }, 7, jar);
 }
 
-function _clickaPost(url, formData, referer) {
+function _clickaPost(url, formData, referer, jar) {
   var headers = {
     'User-Agent': ES_UA,
     'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
@@ -213,7 +215,7 @@ function _clickaPost(url, formData, referer) {
   try { headers['Origin'] = new URL(url).origin; } catch(e) {}
   if (referer) headers['Referer'] = referer;
   var body = typeof formData === 'string' ? formData : _formEncode(formData);
-  return _follow(url, { method: 'POST', headers: headers, body: body }, 7);
+  return _follow(url, { method: 'POST', headers: headers, body: body }, 7, jar);
 }
 
 function _formEncode(obj) {
@@ -1542,9 +1544,13 @@ function extractLinksFromPage(domain, pageUrl, seasonNum, episodeNum, cb) {
     // Resolve clicka.cc URLs
     var pending = clickaTasks.length;
     clickaTasks.forEach(function(task) {
-      Promise.resolve().then(function() {
-        return resolveClickacc(task.url, task.kind);
-      })
+      var timeoutPromise = new Promise(function(_, reject) {
+        setTimeout(function() { reject(new Error('Timeout resolving link')); }, 12000);
+      });
+      Promise.race([
+        resolveClickacc(task.url, task.kind),
+        timeoutPromise
+      ])
       .then(function(streamObj) {
         if (streamObj && streamObj.url && !seen[streamObj.url]) {
           seen[streamObj.url] = true;
@@ -1552,7 +1558,7 @@ function extractLinksFromPage(domain, pageUrl, seasonNum, episodeNum, cb) {
         }
       })
       .catch(function(err) {
-        console.log('[ES] clicka resolve failed: ' + task.url + ' - ' + (err.message || err));
+        console.log('[ES] clicka resolve failed/timeout: ' + task.url + ' - ' + (err.message || err));
       })
       .then(function() {
         pending--;
