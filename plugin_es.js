@@ -1036,11 +1036,20 @@ function extractTurbovid(pageUrl, jar) {
           var combined = html;
           var packerRe = /eval\(function\(p,a,c,k,e,d\)[\s\S]*?\}\([\s\S]*?\.split\(['"]\|['"]\)[\s\S]*?\)\s*\)/g;
           var pm;
+          var packerFound = 0;
           while ((pm = packerRe.exec(html)) !== null) {
+            packerFound++;
+            _dbg('[ES_DBG] packerRe MATCH #' + packerFound + ' len=' + pm[0].length + ' idx=' + pm.index);
             var unpacked = unpackPackedJs(pm[0]);
-            if (unpacked) combined += '\n' + unpacked;
+            _dbg('[ES_DBG] unpackPackedJs returned: ' + (unpacked ? 'OK len=' + unpacked.length : 'NULL'));
+            if (unpacked) {
+              combined += '\n' + unpacked;
+              _dbg('[ES_DBG] unpacked JS (first 200): ' + (unpacked||'').substring(0,200));
+            }
           }
+          _dbg('[ES_DBG] packerRe total matches: ' + packerFound);
           source = _findStreamSource(combined);
+          _dbg('[ES_DBG] after unpack, _findStreamSource: ' + (source ? source.substring(0,80) : 'NULL'));
         }
         if (!source) {
           // Retry GET after POST
