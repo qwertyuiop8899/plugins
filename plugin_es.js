@@ -1435,6 +1435,7 @@ function getStreams(id, type, season, episode) {
         searchSeries(domain, title, seasonNum, function (pageUrl) {
           if (!pageUrl) return resolve([]);
           extractLinksFromPage(domain, pageUrl, seasonNum, episodeNum, function (streams) {
+            _dbg('[ES_DBG] extractLinksFromPage cb called, streams=' + (streams ? streams.length : 'null'));
             resolve(streams || []);
           });
         });
@@ -1632,7 +1633,7 @@ function extractLinksFromPage(domain, pageUrl, seasonNum, episodeNum, cb) {
     var timer = setTimeout(function () {
       if (!resolved) {
         resolved = true;
-        console.log('[ES] Overall scraper timeout of 12s reached. Returning ' + streams.length + ' streams.');
+        _dbg('[ES_DBG] TIMEOUT 12s reached, returning ' + streams.length + ' streams');
         cb(streams.length > 0 ? streams : null);
       }
     }, 12000);
@@ -1652,6 +1653,9 @@ function extractLinksFromPage(domain, pageUrl, seasonNum, episodeNum, cb) {
           if (streamObj && streamObj.url && !seen[streamObj.url]) {
             seen[streamObj.url] = true;
             streams.push(streamObj);
+            _dbg('[ES_DBG] streamObj ADDED url=' + (streamObj.url||'').substring(0,120) + ' title=' + (streamObj.title||'') + ' total=' + streams.length);
+          } else {
+            _dbg('[ES_DBG] streamObj SKIPPED: ' + (streamObj ? 'exists=' + !!seen[streamObj.url] : 'null/undefined'));
           }
         })
         .catch(function (err) {
@@ -1659,9 +1663,11 @@ function extractLinksFromPage(domain, pageUrl, seasonNum, episodeNum, cb) {
         })
         .then(function () {
           pending--;
+          _dbg('[ES_DBG] pending-- now=' + pending + ' resolved=' + resolved + ' streams=' + streams.length);
           if (pending === 0 && !resolved) {
             clearTimeout(timer);
             resolved = true;
+            _dbg('[ES_DBG] ALL DONE, cb(' + streams.length + ' streams)');
             cb(streams.length > 0 ? streams : null);
           }
         });
