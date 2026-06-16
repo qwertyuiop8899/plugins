@@ -3,19 +3,6 @@
  * with clicka.cc captcha OCR resolution (no npm dependencies).
  */
 
-var _originalFetch = fetch;
-fetch = function(url, options) {
-  var targetUrl = url;
-  if (typeof url === 'string') {
-    if (url.indexOf('turbovid') >= 0 || url.indexOf('deltabit') >= 0) {
-      if (url.indexOf('workers.dev') < 0) {
-        targetUrl = 'https://vidclick.leanhhu061208-775.workers.dev/?url=' + encodeURIComponent(url);
-      }
-    }
-  }
-  return _originalFetch(targetUrl, options);
-};
-
 // =========================================================================
 // CONFIGURATION
 // =========================================================================
@@ -203,6 +190,7 @@ function _follow(url, options, maxHops, jar) {
         fetchOpts.headers['Connection'] = 'keep-alive';
       }
 
+      if (!fetchOpts.timeout) fetchOpts.timeout = 15000;
       fetch(finalFetchUrl, { ...fetchOpts, redirect: 'manual' }).then(function(r) {
         var finalUrl = curUrl; 
         _extractCookies(r, finalUrl, jar);
@@ -1582,8 +1570,8 @@ function extractLinksFromPage(domain, pageUrl, seasonNum, episodeNum, cb) {
     clickaTasks.forEach(function(task) {
       var taskJar = {};
       var timeoutPromise = new Promise(function(_, reject) {
-        // Individual link timeout remains 25s to allow Turbovid to finish if it can
-        setTimeout(function() { reject(new Error('Timeout resolving link')); }, 25000);
+        // Individual link timeout
+        setTimeout(function() { reject(new Error('Timeout resolving link')); }, 15000);
       });
       Promise.race([
         resolveClickacc(task.url, task.kind, taskJar),
