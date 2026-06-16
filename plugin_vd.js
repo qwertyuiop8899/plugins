@@ -130,7 +130,6 @@ function getStreams(id, type, season, episode) {
 }
 
 function fetchVidxgoPage(url, cb) {
-  var proxyUrl = 'https://vidclick.leanhhu061208-775.workers.dev/?url=' + encodeURIComponent(url);
   var headers = {
     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Safari/537.36',
     'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
@@ -149,7 +148,7 @@ function fetchVidxgoPage(url, cb) {
     'Sec-Fetch-Mode': 'navigate',
     'Sec-Fetch-Site': 'cross-site'
   };
-  fetch(proxyUrl, { headers: headers, timeout: 20000 })
+  fetch(url, { headers: headers, timeout: 20000 })
     .then(function (r) { return r.text(); })
     .then(function (html) { cb(null, html); })
     .catch(function (err) { cb(err, null); });
