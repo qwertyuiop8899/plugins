@@ -4,9 +4,9 @@
  */
 var _fs = require('fs');
 var _logFile = 'C:\\Users\\emanu\\Downloads\\stremioserver\\plugin_debug.log';
-try { _fs.writeFileSync(_logFile, ''); } catch(e) {}
+try { _fs.writeFileSync(_logFile, ''); } catch (e) { }
 function _dbg(msg) {
-  try { _fs.appendFileSync(_logFile, new Date().toISOString().substring(11,19) + ' ' + msg + '\n'); } catch(e) {}
+  try { _fs.appendFileSync(_logFile, new Date().toISOString().substring(11, 19) + ' ' + msg + '\n'); } catch (e) { }
 }
 
 // =========================================================================
@@ -15,7 +15,7 @@ function _dbg(msg) {
 var ES_UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36';
 
 if (typeof URL === 'undefined') {
-  URL = function(uri, base) {
+  URL = function (uri, base) {
     var resolved = uri;
     if (base) {
       if (uri.indexOf('://') < 0) {
@@ -68,7 +68,7 @@ function _decodeEntities(s) {
 }
 
 function _resolveUrl(href, base) {
-  try { return new URL(href, base).href; } catch(e) { return null; }
+  try { return new URL(href, base).href; } catch (e) { return null; }
 }
 
 function _buildProxyUrl(rawUrl, referer, ua, origin) {
@@ -77,17 +77,17 @@ function _buildProxyUrl(rawUrl, referer, ua, origin) {
     var destOrigin = urlObj.origin;
     var pathnameAndSearch = urlObj.pathname + urlObj.search;
     var opts = 'd=' + encodeURIComponent(destOrigin) +
-               '&h=' + encodeURIComponent('User-Agent:' + (ua || ES_UA)) +
-               '&h=' + encodeURIComponent('Referer:' + referer);
+      '&h=' + encodeURIComponent('User-Agent:' + (ua || ES_UA)) +
+      '&h=' + encodeURIComponent('Referer:' + referer);
     if (origin) {
       opts += '&h=' + encodeURIComponent('Origin:' + origin);
     }
     return '/proxy/' + opts + pathnameAndSearch;
-  } catch(e) { return rawUrl; }
+  } catch (e) { return rawUrl; }
 }
 
 function _sleep(ms) {
-  return new Promise(function(r) { setTimeout(r, ms); });
+  return new Promise(function (r) { setTimeout(r, ms); });
 }
 
 function _isDigit(s) { return /^\d+$/.test(s); }
@@ -113,7 +113,7 @@ function _jarSet(url, setCookieHeader, jar) {
     }
   }
   if (!domain) {
-    try { domain = new URL(url).hostname; } catch(e) { return; }
+    try { domain = new URL(url).hostname; } catch (e) { return; }
   }
   var activeJar = jar || _cookieJar;
   if (!activeJar[domain]) activeJar[domain] = {};
@@ -135,7 +135,7 @@ function _jarGet(url, jar) {
       }
     }
     return cookies.join('; ');
-  } catch(e) { return ''; }
+  } catch (e) { return ''; }
 }
 
 function _jarClear() { _cookieJar = {}; }
@@ -154,18 +154,18 @@ function _extractCookies(r, finalUrl, jar) {
     }
     // Fallback: iterate all headers
     if (typeof r.headers.forEach === 'function') {
-      r.headers.forEach(function(v, k) {
+      r.headers.forEach(function (v, k) {
         if (k.toLowerCase() === 'set-cookie') _jarSet(finalUrl, v, jar);
       });
     } else if (typeof r.headers.get === 'function') {
       var sc = r.headers.get('set-cookie') || r.headers.get('Set-Cookie');
       if (sc) _jarSet(finalUrl, sc, jar);
     }
-  } catch(e) {}
+  } catch (e) { }
 }
 
 function _follow(url, options, maxHops, jar) {
-  return new Promise(function(resolve, reject) {
+  return new Promise(function (resolve, reject) {
     var hops = 0;
     function doFetch(curUrl) {
       if (hops++ > maxHops) return reject(new Error('Too many redirects'));
@@ -197,27 +197,27 @@ function _follow(url, options, maxHops, jar) {
       }
 
       var fetchTimeoutMs = fetchOpts.timeout || 15000;
-      var fetchTimer = setTimeout(function() {
-        _dbg('[ES_DBG] _follow TIMEOUT ' + fetchTimeoutMs + 'ms for ' + (curUrl||'').substring(0,80));
+      var fetchTimer = setTimeout(function () {
+        _dbg('[ES_DBG] _follow TIMEOUT ' + fetchTimeoutMs + 'ms for ' + (curUrl || '').substring(0, 80));
         reject(new Error('Follow fetch timeout ' + fetchTimeoutMs + 'ms'));
       }, fetchTimeoutMs);
-      fetch(finalFetchUrl, { ...fetchOpts, redirect: 'manual' }).then(function(r) {
+      fetch(finalFetchUrl, { ...fetchOpts, redirect: 'manual' }).then(function (r) {
         clearTimeout(fetchTimer);
-        _dbg('[ES_DBG] _follow OK status=' + r.status + ' ' + (curUrl||'').substring(0,80));
-        var finalUrl = curUrl; 
+        _dbg('[ES_DBG] _follow OK status=' + r.status + ' ' + (curUrl || '').substring(0, 80));
+        var finalUrl = curUrl;
         _extractCookies(r, finalUrl, jar);
         if (r.status >= 300 && r.status < 400 && r.status !== 304) {
           var loc = r.headers.get('location');
           if (loc) {
             var nextUrl = loc.indexOf('://') >= 0 ? loc : _resolveUrl(loc, finalUrl);
-            _dbg('[ES_DBG] _follow redirect -> ' + (nextUrl||'').substring(0,80));
+            _dbg('[ES_DBG] _follow redirect -> ' + (nextUrl || '').substring(0, 80));
             if (nextUrl && nextUrl !== curUrl) return doFetch(nextUrl);
           }
         }
-        return r.text().then(function(text) {
+        return r.text().then(function (text) {
           resolve({ ok: true, status: r.status, text: text, url: finalUrl });
         });
-      }).catch(function(err) { clearTimeout(fetchTimer); _dbg('[ES_DBG] _follow ERR: ' + (err&&err.message||err)); reject(err); });
+      }).catch(function (err) { clearTimeout(fetchTimer); _dbg('[ES_DBG] _follow ERR: ' + (err && err.message || err)); reject(err); });
     }
     doFetch(url);
   });
@@ -241,7 +241,7 @@ function _clickaPost(url, formData, referer, jar) {
     'Accept-Language': 'it-IT,it;q=0.9,en-US;q=0.8,en;q=0.7',
     'Content-Type': 'application/x-www-form-urlencoded'
   };
-  try { headers['Origin'] = new URL(url).origin; } catch(e) {}
+  try { headers['Origin'] = new URL(url).origin; } catch (e) { }
   if (referer) headers['Referer'] = referer;
   var body = typeof formData === 'string' ? formData : _formEncode(formData);
   return _follow(url, { method: 'POST', headers: headers, body: body }, 7, jar);
@@ -261,7 +261,7 @@ function _formEncode(obj) {
 // PNG DECODER (Buffer + zlib, no external deps)
 // =========================================================================
 var _zlib = null;
-try { _zlib = require('zlib'); } catch(e) {}
+try { _zlib = require('zlib'); } catch (e) { }
 
 function _pngDecode(b64) {
   if (!_zlib) throw new Error('zlib not available');
@@ -281,7 +281,7 @@ function _pngDecode(b64) {
   while (pos + 8 <= bytes.length) {
     var clen = (bytes[pos] << 24) | (bytes[pos + 1] << 16) | (bytes[pos + 2] << 8) | bytes[pos + 3];
     var ctype = String.fromCharCode(bytes[pos + 4]) + String.fromCharCode(bytes[pos + 5]) +
-                String.fromCharCode(bytes[pos + 6]) + String.fromCharCode(bytes[pos + 7]);
+      String.fromCharCode(bytes[pos + 6]) + String.fromCharCode(bytes[pos + 7]);
     if (ctype === 'IHDR') {
       width = (bytes[pos + 8] << 24) | (bytes[pos + 9] << 16) | (bytes[pos + 10] << 8) | bytes[pos + 11];
       height = (bytes[pos + 12] << 24) | (bytes[pos + 13] << 16) | (bytes[pos + 14] << 8) | bytes[pos + 15];
@@ -360,135 +360,155 @@ function _pngDecode(b64) {
 
 var DIGIT_PIXELS = [
   // 0 (w=8)
-  { w: 8, pixels: [
-    [0,0,0,1,1,0,0,0],
-    [0,0,1,1,1,1,0,0],
-    [0,1,1,0,0,1,1,0],
-    [1,1,0,0,0,0,1,1],
-    [1,1,0,0,0,0,1,1],
-    [1,1,0,0,0,0,1,1],
-    [1,1,0,0,0,0,1,1],
-    [0,1,1,0,0,1,1,0],
-    [0,0,1,1,1,1,0,0],
-    [0,0,0,1,1,0,0,0]
-  ]},
+  {
+    w: 8, pixels: [
+      [0, 0, 0, 1, 1, 0, 0, 0],
+      [0, 0, 1, 1, 1, 1, 0, 0],
+      [0, 1, 1, 0, 0, 1, 1, 0],
+      [1, 1, 0, 0, 0, 0, 1, 1],
+      [1, 1, 0, 0, 0, 0, 1, 1],
+      [1, 1, 0, 0, 0, 0, 1, 1],
+      [1, 1, 0, 0, 0, 0, 1, 1],
+      [0, 1, 1, 0, 0, 1, 1, 0],
+      [0, 0, 1, 1, 1, 1, 0, 0],
+      [0, 0, 0, 1, 1, 0, 0, 0]
+    ]
+  },
   // 1 (w=3)
-  { w: 3, pixels: [
-    [0,1,1],
-    [1,1,1],
-    [1,1,1],
-    [0,1,1],
-    [0,1,1],
-    [0,1,1],
-    [0,1,1],
-    [0,1,1],
-    [0,1,1],
-    [1,1,1]
-  ]},
+  {
+    w: 3, pixels: [
+      [0, 1, 1],
+      [1, 1, 1],
+      [1, 1, 1],
+      [0, 1, 1],
+      [0, 1, 1],
+      [0, 1, 1],
+      [0, 1, 1],
+      [0, 1, 1],
+      [0, 1, 1],
+      [1, 1, 1]
+    ]
+  },
   // 2 (w=7)
-  { w: 7, pixels: [
-    [0,1,1,1,1,0,0],
-    [1,1,0,0,1,1,0],
-    [1,0,0,0,0,1,1],
-    [0,0,0,0,0,1,1],
-    [0,0,0,0,1,1,0],
-    [0,0,0,1,1,0,0],
-    [0,0,1,1,0,0,0],
-    [0,1,1,0,0,0,0],
-    [1,1,0,0,0,0,0],
-    [1,1,1,1,1,1,1]
-  ]},
+  {
+    w: 7, pixels: [
+      [0, 1, 1, 1, 1, 0, 0],
+      [1, 1, 0, 0, 1, 1, 0],
+      [1, 0, 0, 0, 0, 1, 1],
+      [0, 0, 0, 0, 0, 1, 1],
+      [0, 0, 0, 0, 1, 1, 0],
+      [0, 0, 0, 1, 1, 0, 0],
+      [0, 0, 1, 1, 0, 0, 0],
+      [0, 1, 1, 0, 0, 0, 0],
+      [1, 1, 0, 0, 0, 0, 0],
+      [1, 1, 1, 1, 1, 1, 1]
+    ]
+  },
   // 3 (w=5)
-  { w: 5, pixels: [
-    [1,1,1,0,0],
-    [0,0,1,1,0],
-    [0,0,0,1,1],
-    [0,0,1,1,0],
-    [1,1,1,0,0],
-    [0,0,1,1,0],
-    [0,0,0,1,1],
-    [0,0,0,1,1],
-    [0,0,1,1,0],
-    [1,1,1,0,0]
-  ]},
+  {
+    w: 5, pixels: [
+      [1, 1, 1, 0, 0],
+      [0, 0, 1, 1, 0],
+      [0, 0, 0, 1, 1],
+      [0, 0, 1, 1, 0],
+      [1, 1, 1, 0, 0],
+      [0, 0, 1, 1, 0],
+      [0, 0, 0, 1, 1],
+      [0, 0, 0, 1, 1],
+      [0, 0, 1, 1, 0],
+      [1, 1, 1, 0, 0]
+    ]
+  },
   // 4 (w=6)
-  { w: 6, pixels: [
-    [0,0,0,0,1,1],
-    [0,0,0,1,1,1],
-    [0,0,1,1,1,1],
-    [0,1,1,0,1,1],
-    [1,1,0,0,1,1],
-    [1,0,0,0,1,1],
-    [1,1,1,1,1,1],
-    [0,0,0,0,1,1],
-    [0,0,0,0,1,1],
-    [0,0,0,0,1,1]
-  ]},
+  {
+    w: 6, pixels: [
+      [0, 0, 0, 0, 1, 1],
+      [0, 0, 0, 1, 1, 1],
+      [0, 0, 1, 1, 1, 1],
+      [0, 1, 1, 0, 1, 1],
+      [1, 1, 0, 0, 1, 1],
+      [1, 0, 0, 0, 1, 1],
+      [1, 1, 1, 1, 1, 1],
+      [0, 0, 0, 0, 1, 1],
+      [0, 0, 0, 0, 1, 1],
+      [0, 0, 0, 0, 1, 1]
+    ]
+  },
   // 5 (w=8)
-  { w: 8, pixels: [
-    [1,1,1,1,1,1,1,0],
-    [1,1,0,0,0,0,0,0],
-    [1,1,0,0,0,0,0,0],
-    [1,1,0,1,1,1,0,0],
-    [1,1,1,0,0,1,1,0],
-    [0,0,0,0,0,0,1,1],
-    [0,0,0,0,0,0,1,1],
-    [1,1,0,0,0,0,1,1],
-    [0,1,1,0,0,1,1,0],
-    [0,0,1,1,1,1,0,0]
-  ]},
+  {
+    w: 8, pixels: [
+      [1, 1, 1, 1, 1, 1, 1, 0],
+      [1, 1, 0, 0, 0, 0, 0, 0],
+      [1, 1, 0, 0, 0, 0, 0, 0],
+      [1, 1, 0, 1, 1, 1, 0, 0],
+      [1, 1, 1, 0, 0, 1, 1, 0],
+      [0, 0, 0, 0, 0, 0, 1, 1],
+      [0, 0, 0, 0, 0, 0, 1, 1],
+      [1, 1, 0, 0, 0, 0, 1, 1],
+      [0, 1, 1, 0, 0, 1, 1, 0],
+      [0, 0, 1, 1, 1, 1, 0, 0]
+    ]
+  },
   // 6 (w=7)
-  { w: 7, pixels: [
-    [0,0,1,1,1,1,0],
-    [0,1,1,0,0,1,1],
-    [1,1,0,0,0,0,1],
-    [1,1,0,0,0,0,0],
-    [1,1,0,1,1,1,0],
-    [1,1,1,0,0,1,1],
-    [1,1,0,0,0,0,1],
-    [1,1,0,0,0,0,1],
-    [0,1,1,0,0,1,1],
-    [0,0,1,1,1,1,0]
-  ]},
+  {
+    w: 7, pixels: [
+      [0, 0, 1, 1, 1, 1, 0],
+      [0, 1, 1, 0, 0, 1, 1],
+      [1, 1, 0, 0, 0, 0, 1],
+      [1, 1, 0, 0, 0, 0, 0],
+      [1, 1, 0, 1, 1, 1, 0],
+      [1, 1, 1, 0, 0, 1, 1],
+      [1, 1, 0, 0, 0, 0, 1],
+      [1, 1, 0, 0, 0, 0, 1],
+      [0, 1, 1, 0, 0, 1, 1],
+      [0, 0, 1, 1, 1, 1, 0]
+    ]
+  },
   // 7 (w=8)
-  { w: 8, pixels: [
-    [1,1,1,1,1,1,1,1],
-    [0,0,0,0,0,0,1,1],
-    [0,0,0,0,0,0,1,1],
-    [0,0,0,0,0,1,1,0],
-    [0,0,0,0,1,1,0,0],
-    [0,0,0,1,1,0,0,0],
-    [0,0,1,1,0,0,0,0],
-    [0,1,1,0,0,0,0,0],
-    [1,1,0,0,0,0,0,0],
-    [1,1,0,0,0,0,0,0]
-  ]},
+  {
+    w: 8, pixels: [
+      [1, 1, 1, 1, 1, 1, 1, 1],
+      [0, 0, 0, 0, 0, 0, 1, 1],
+      [0, 0, 0, 0, 0, 0, 1, 1],
+      [0, 0, 0, 0, 0, 1, 1, 0],
+      [0, 0, 0, 0, 1, 1, 0, 0],
+      [0, 0, 0, 1, 1, 0, 0, 0],
+      [0, 0, 1, 1, 0, 0, 0, 0],
+      [0, 1, 1, 0, 0, 0, 0, 0],
+      [1, 1, 0, 0, 0, 0, 0, 0],
+      [1, 1, 0, 0, 0, 0, 0, 0]
+    ]
+  },
   // 8 (w=8)
-  { w: 8, pixels: [
-    [0,0,1,1,1,1,0,0],
-    [0,1,1,0,0,1,1,0],
-    [1,1,0,0,0,0,1,1],
-    [0,1,1,0,0,1,1,0],
-    [0,0,1,1,1,1,0,0],
-    [0,1,1,0,0,1,1,0],
-    [1,1,0,0,0,0,1,1],
-    [1,1,0,0,0,0,1,1],
-    [0,1,1,0,0,1,1,0],
-    [0,0,1,1,1,1,0,0]
-  ]},
+  {
+    w: 8, pixels: [
+      [0, 0, 1, 1, 1, 1, 0, 0],
+      [0, 1, 1, 0, 0, 1, 1, 0],
+      [1, 1, 0, 0, 0, 0, 1, 1],
+      [0, 1, 1, 0, 0, 1, 1, 0],
+      [0, 0, 1, 1, 1, 1, 0, 0],
+      [0, 1, 1, 0, 0, 1, 1, 0],
+      [1, 1, 0, 0, 0, 0, 1, 1],
+      [1, 1, 0, 0, 0, 0, 1, 1],
+      [0, 1, 1, 0, 0, 1, 1, 0],
+      [0, 0, 1, 1, 1, 1, 0, 0]
+    ]
+  },
   // 9 (w=7)
-  { w: 7, pixels: [
-    [0,1,1,1,1,0,0],
-    [1,1,0,0,1,1,0],
-    [1,0,0,0,0,1,1],
-    [1,0,0,0,0,1,1],
-    [1,1,0,0,1,1,1],
-    [0,1,1,1,0,1,1],
-    [0,0,0,0,0,1,1],
-    [1,0,0,0,0,1,1],
-    [1,1,0,0,1,1,0],
-    [0,1,1,1,1,0,0]
-  ]}
+  {
+    w: 7, pixels: [
+      [0, 1, 1, 1, 1, 0, 0],
+      [1, 1, 0, 0, 1, 1, 0],
+      [1, 0, 0, 0, 0, 1, 1],
+      [1, 0, 0, 0, 0, 1, 1],
+      [1, 1, 0, 0, 1, 1, 1],
+      [0, 1, 1, 1, 0, 1, 1],
+      [0, 0, 0, 0, 0, 1, 1],
+      [1, 0, 0, 0, 0, 1, 1],
+      [1, 1, 0, 0, 1, 1, 0],
+      [0, 1, 1, 1, 1, 0, 0]
+    ]
+  }
 ];
 
 function _binarize(pixels, w, h, bpp) {
@@ -688,7 +708,7 @@ function _findCaptchaFormAction(text, baseUrl) {
   var m;
   while ((m = formRe.exec(text))) {
     if (m[0].toLowerCase().indexOf('data:image') >= 0 ||
-        /name=["']?capt(?:cha|ch5|ch6)?["']?/i.test(m[0])) {
+      /name=["']?capt(?:cha|ch5|ch6)?["']?/i.test(m[0])) {
       var actionM = m[0].match(/\baction=(?:"([^"]*)"|'([^']*)'|([^\s>]+))/i);
       if (actionM) {
         var action = _decodeEntities(actionM[1] || actionM[2] || actionM[3] || '').trim();
@@ -796,21 +816,21 @@ function _findStreamSource(text) {
 }
 
 function _isDeltabitHost(url) {
-  try { return /(^|\.)deltabit\./.test(new URL(url).host); } catch(e) { return false; }
+  try { return /(^|\.)deltabit\./.test(new URL(url).host); } catch (e) { return false; }
 }
 
 function _isTurbovidHost(url) {
   try {
     var h = new URL(url).host.toLowerCase();
     return /(turbovid)/.test(h);
-  } catch(e) { return false; }
+  } catch (e) { return false; }
 }
 
 function _isMixdropHost(url) {
   try {
     var h = new URL(url).host.toLowerCase();
     return new RegExp(MD_PAT).test(h);
-  } catch(e) { return false; }
+  } catch (e) { return false; }
 }
 
 // =========================================================================
@@ -836,14 +856,14 @@ function unpackPackedJs(packed) {
     var key = toBaseN(i);
     dict[key] = (k[i] && k[i].length) ? k[i] : key;
   }
-  return p.replace(/\b(\w+)\b/g, function(_, w) { return dict[w] !== undefined ? dict[w] : w; });
+  return p.replace(/\b(\w+)\b/g, function (_, w) { return dict[w] !== undefined ? dict[w] : w; });
 }
 
 // =========================================================================
 // CLICKA.CC CAPTCHA SOLVER
 // =========================================================================
 function _solveCaptchaPage(text, currentUrl, jar) {
-  return new Promise(function(resolve, reject) {
+  return new Promise(function (resolve, reject) {
     if (!_hasCaptcha(text)) return resolve({ text: text, url: currentUrl });
     var imageSrc = _captchaImageSrc(text);
     if (!imageSrc) return reject(new Error('captcha image not found'));
@@ -856,7 +876,7 @@ function _solveCaptchaPage(text, currentUrl, jar) {
     var action = _findCaptchaFormAction(text, currentUrl);
     var formData = _formDataFromInputs(text, guess);
     _clickaPost(action, formData, currentUrl, jar)
-      .then(function(postRes) {
+      .then(function (postRes) {
         if (_hasCaptcha(postRes.text)) {
           var _pv = _findProceedToVideoUrl(postRes.text);
           if (!_pv) {
@@ -865,7 +885,7 @@ function _solveCaptchaPage(text, currentUrl, jar) {
         }
         resolve({ text: postRes.text, url: action });
       })
-      .catch(function(err) { reject(err); });
+      .catch(function (err) { reject(err); });
   });
 }
 
@@ -873,7 +893,7 @@ function _solveCaptchaPage(text, currentUrl, jar) {
 // MIXDROP EXTRACTION (promise-based)
 // =========================================================================
 function fetchMixDrop(host, id) {
-  return new Promise(function(resolve, reject) {
+  return new Promise(function (resolve, reject) {
     var headers = {
       'User-Agent': ES_UA,
       'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
@@ -883,8 +903,8 @@ function fetchMixDrop(host, id) {
     };
     var url = 'https://' + host + '/e/' + id;
     fetch(url, { headers: headers, timeout: 15000 })
-      .then(function(r) { return r.text(); })
-      .then(function(html) {
+      .then(function (r) { return r.text(); })
+      .then(function (html) {
         var combined = html;
         var packerRe = /eval\(function\(p,a,c,k,e,d\)[\s\S]*?\}\([\s\S]*?\.split\(['"]\|['"]\)[\s\S]*?\)\s*\)/g;
         var pm;
@@ -913,7 +933,7 @@ function fetchMixDrop(host, id) {
         if (!streamUrl) return reject(new Error('MixDrop stream URL not found for ' + host + '/' + id));
         resolve(streamUrl);
       })
-      .catch(function(err) { reject(err); });
+      .catch(function (err) { reject(err); });
   });
 }
 
@@ -925,9 +945,9 @@ function tryMixDropHosts(id) {
       return Promise.reject(new Error('MixDrop all hosts failed: ' + (lastErr || 'unknown')));
     }
     var host = MD_HOSTS[idx++];
-    return fetchMixDrop(host, id).then(function(streamUrl) {
+    return fetchMixDrop(host, id).then(function (streamUrl) {
       return { url: streamUrl, host: host };
-    }).catch(function(err) {
+    }).catch(function (err) {
       lastErr = err.message;
       return next();
     });
@@ -941,23 +961,23 @@ function tryMixDropHosts(id) {
 function extractTurbovid(pageUrl, jar) {
   _dbg('[ES_DBG] extractTurbovid ENTRY ' + pageUrl);
   function _fetchWithTimeout(url, options, ms) {
-    _dbg('[ES_DBG] _fetchWithTimeout ' + (options&&options.method||'GET') + ' ' + (url||'').substring(0,80) + ' timeout=' + ms);
-    var timeoutId = setTimeout(function() {
-      _dbg('[ES_DBG] _fetchWithTimeout FIRED timeout=' + ms + ' for ' + (url||'').substring(0,80));
+    _dbg('[ES_DBG] _fetchWithTimeout ' + (options && options.method || 'GET') + ' ' + (url || '').substring(0, 80) + ' timeout=' + ms);
+    var timeoutId = setTimeout(function () {
+      _dbg('[ES_DBG] _fetchWithTimeout FIRED timeout=' + ms + ' for ' + (url || '').substring(0, 80));
     }, ms);
     var p = Promise.race([
       fetch(url, options),
-      new Promise(function(_, reject) {
-        setTimeout(function() {
+      new Promise(function (_, reject) {
+        setTimeout(function () {
           clearTimeout(timeoutId);
           reject(new Error('Fetch timeout ' + ms + 'ms'));
         }, ms);
       })
     ]);
-    p.then(function() { clearTimeout(timeoutId); }, function() { clearTimeout(timeoutId); });
+    p.then(function () { clearTimeout(timeoutId); }, function () { clearTimeout(timeoutId); });
     return p;
   }
-  return new Promise(function(resolve, reject) {
+  return new Promise(function (resolve, reject) {
     var landingHeaders = {
       'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36',
       'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
@@ -968,18 +988,18 @@ function extractTurbovid(pageUrl, jar) {
     var cookieStr = _jarGet(pageUrl, jar);
     if (cookieStr) landingHeaders['Cookie'] = cookieStr;
     _fetchWithTimeout(pageUrl, { headers: landingHeaders, redirect: 'manual' }, 15000)
-      .then(function(r) {
+      .then(function (r) {
         try {
           if (r.headers && r.headers.get) {
             var sc = r.headers.get('set-cookie') || r.headers.get('Set-Cookie');
             if (sc) _jarSet(pageUrl, sc, jar);
           }
-        } catch(e) {}
+        } catch (e) { }
         return r.text();
       })
-      .then(function(html) {
+      .then(function (html) {
         // Try inline source first
-        var finalOrigin = (function() { try { return new URL(pageUrl).origin; } catch(e) { return ''; } })();
+        var finalOrigin = (function () { try { return new URL(pageUrl).origin; } catch (e) { return ''; } })();
         var source = _findStreamSource(html);
         if (source) return resolve({ url: source, headers: { 'User-Agent': landingHeaders['User-Agent'], 'Referer': pageUrl, 'Origin': finalOrigin } });
         // Parse form
@@ -1010,33 +1030,36 @@ function extractTurbovid(pageUrl, jar) {
         if (cookieStr2) postHeaders['Cookie'] = cookieStr2;
         // Sleep 5s before POST (Turbovid requires delay)
         _dbg('[ES_DBG] sleeping 5s before POST');
-        return _sleep(5000).then(function() {
+        return _sleep(5000).then(function () {
           _dbg('[ES_DBG] POST start');
           return _fetchWithTimeout(pageUrl, { method: 'POST', headers: postHeaders, body: _formEncode(formData), redirect: 'manual' }, 30000);
         });
       })
-      .then(function(r) {
-        _dbg('[ES_DBG] POST response status=' + r.status + ' len=' + (r._body||r.body||'').length);
+      .then(function (r) {
+        _dbg('[ES_DBG] POST response status=' + r.status + ' len=' + (r._body || r.body || '').length);
         try {
           if (r.headers && r.headers.get) {
             var sc = r.headers.get('set-cookie') || r.headers.get('Set-Cookie');
             if (sc) _jarSet(pageUrl, sc, jar);
           }
-        } catch(e) {}
+        } catch (e) { }
         return r.text();
       })
-      .then(function(html) {
-        _dbg('[ES_DBG] POST text len=' + (html||'').length + ' hasSource=' + (_findStreamSource(html) ? 'Y' : 'N'));
-        try { _fs.writeFileSync('C:\\Users\\emanu\\Downloads\\stremioserver\\post_html_dump.txt', html||''); _dbg('[ES_DBG] POST html DUMPED'); } catch(e) { _dbg('[ES_DBG] POST html DUMP ERR: ' + (e.message||e)); }
-        var finalOrigin = (function() { try { return new URL(pageUrl).origin; } catch(e) { return ''; } })();
-        // Search source in POST response
+      .then(function (html) {
+        _dbg('[ES_DBG] POST text len=' + (html || '').length + ' hasSource=' + (_findStreamSource(html) ? 'Y' : 'N'));
+        try { _fs.writeFileSync('C:\\Users\\emanu\\Downloads\\stremioserver\\post_html_dump.txt', html || ''); _dbg('[ES_DBG] POST html DUMPED'); } catch (e) { _dbg('[ES_DBG] POST html DUMP ERR: ' + (e.message || e)); }
+        _dbg('[ES_DBG] STEP A: after dump');
+        var finalOrigin = (function () { try { return new URL(pageUrl).origin; } catch (e) { return ''; } })();
+        _dbg('[ES_DBG] STEP B: finalOrigin=' + finalOrigin);
         var source = _findStreamSource(html);
+        _dbg('[ES_DBG] STEP C: _findStreamSource on raw html: ' + (source ? source.substring(0, 60) : 'NULL'));
         if (!source) {
-          // Try unpacking packed JS
+          _dbg('[ES_DBG] STEP D: entering packer block');
           var combined = html;
           var packerRe = /eval\(function\(p,a,c,k,e,d\)[\s\S]*?\}\([\s\S]*?\.split\(['"]\|['"]\)[\s\S]*?\)\s*\)/g;
           var pm;
           var packerFound = 0;
+          _dbg('[ES_DBG] STEP E: before while loop');
           while ((pm = packerRe.exec(html)) !== null) {
             packerFound++;
             _dbg('[ES_DBG] packerRe MATCH #' + packerFound + ' len=' + pm[0].length + ' idx=' + pm.index);
@@ -1044,12 +1067,12 @@ function extractTurbovid(pageUrl, jar) {
             _dbg('[ES_DBG] unpackPackedJs returned: ' + (unpacked ? 'OK len=' + unpacked.length : 'NULL'));
             if (unpacked) {
               combined += '\n' + unpacked;
-              _dbg('[ES_DBG] unpacked JS (first 200): ' + (unpacked||'').substring(0,200));
+              _dbg('[ES_DBG] unpacked JS (first 200): ' + (unpacked || '').substring(0, 200));
             }
           }
-          _dbg('[ES_DBG] packerRe total matches: ' + packerFound);
+          _dbg('[ES_DBG] STEP F: while done, matches=' + packerFound);
           source = _findStreamSource(combined);
-          _dbg('[ES_DBG] after unpack, _findStreamSource: ' + (source ? source.substring(0,80) : 'NULL'));
+          _dbg('[ES_DBG] STEP G: after unpack, _findStreamSource: ' + (source ? source.substring(0, 80) : 'NULL'));
         }
         if (!source) {
           // Retry GET after POST
@@ -1064,9 +1087,9 @@ function extractTurbovid(pageUrl, jar) {
           var cstr = _jarGet(pageUrl, jar);
           if (cstr) retryHeaders['Cookie'] = cstr;
           return _fetchWithTimeout(pageUrl, { headers: retryHeaders, redirect: 'manual' }, 15000)
-            .then(function(r2) { _dbg('[ES_DBG] retry GET status=' + r2.status); return r2.text(); })
-            .then(function(html2) {
-              _dbg('[ES_DBG] retry GET text len=' + (html2||'').length + ' hasSource=' + (_findStreamSource(html2)?'Y':'N'));
+            .then(function (r2) { _dbg('[ES_DBG] retry GET status=' + r2.status); return r2.text(); })
+            .then(function (html2) {
+              _dbg('[ES_DBG] retry GET text len=' + (html2 || '').length + ' hasSource=' + (_findStreamSource(html2) ? 'Y' : 'N'));
               source = _findStreamSource(html2);
               if (!source) return reject(new Error('Turbovid: stream source not found'));
               resolve({ url: source, headers: { 'User-Agent': landingHeaders['User-Agent'], 'Referer': pageUrl, 'Origin': finalOrigin } });
@@ -1074,7 +1097,7 @@ function extractTurbovid(pageUrl, jar) {
         }
         resolve({ url: source, headers: { 'User-Agent': landingHeaders['User-Agent'], 'Referer': pageUrl, 'Origin': finalOrigin } });
       })
-      .catch(function(err) { _dbg('[ES_DBG] extractTurbovid CATCH: ' + (err&&err.message||err)); reject(err); });
+      .catch(function (err) { _dbg('[ES_DBG] extractTurbovid CATCH: ' + (err && err.message || err)); reject(err); });
   });
 }
 
@@ -1082,7 +1105,7 @@ function extractTurbovid(pageUrl, jar) {
 // DELTABIT EXTRACTION (similar to Turbovid but imhuman='' and 2.5s sleep)
 // =========================================================================
 function extractDeltabit(pageUrl, jar) {
-  return new Promise(function(resolve, reject) {
+  return new Promise(function (resolve, reject) {
     var landingHeaders = {
       'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36',
       'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
@@ -1093,17 +1116,17 @@ function extractDeltabit(pageUrl, jar) {
     var cookieStr = _jarGet(pageUrl, jar);
     if (cookieStr) landingHeaders['Cookie'] = cookieStr;
     fetch(pageUrl, { headers: landingHeaders, timeout: 15000 })
-      .then(function(r) {
+      .then(function (r) {
         try {
           if (r.headers && r.headers.get) {
             var sc = r.headers.get('set-cookie') || r.headers.get('Set-Cookie');
             if (sc) _jarSet(pageUrl, sc, jar);
           }
-        } catch(e) {}
+        } catch (e) { }
         return r.text();
       })
-      .then(function(html) {
-        var finalOrigin = (function() { try { return new URL(pageUrl).origin; } catch(e) { return ''; } })();
+      .then(function (html) {
+        var finalOrigin = (function () { try { return new URL(pageUrl).origin; } catch (e) { return ''; } })();
         var source = _findStreamSource(html);
         if (source) return resolve({ url: source, headers: { 'User-Agent': landingHeaders['User-Agent'], 'Referer': pageUrl, 'Origin': finalOrigin } });
         // Parse form
@@ -1133,21 +1156,21 @@ function extractDeltabit(pageUrl, jar) {
         var cookieStr2 = _jarGet(pageUrl, jar);
         if (cookieStr2) postHeaders['Cookie'] = cookieStr2;
         // Sleep 2.5s before POST
-        return _sleep(2500).then(function() {
+        return _sleep(2500).then(function () {
           return fetch(pageUrl, { method: 'POST', headers: postHeaders, body: _formEncode(formData), timeout: 30000 });
         });
       })
-      .then(function(r) {
+      .then(function (r) {
         try {
           if (r.headers && r.headers.get) {
             var sc = r.headers.get('set-cookie') || r.headers.get('Set-Cookie');
             if (sc) _jarSet(pageUrl, sc, jar);
           }
-        } catch(e) {}
+        } catch (e) { }
         return r.text();
       })
-      .then(function(html) {
-        var finalOrigin = (function() { try { return new URL(pageUrl).origin; } catch(e) { return ''; } })();
+      .then(function (html) {
+        var finalOrigin = (function () { try { return new URL(pageUrl).origin; } catch (e) { return ''; } })();
         var source = _findStreamSource(html);
         if (!source) {
           var combined = html;
@@ -1171,8 +1194,8 @@ function extractDeltabit(pageUrl, jar) {
           var cstr = _jarGet(pageUrl, jar);
           if (cstr) retryHeaders['Cookie'] = cstr;
           return fetch(pageUrl, { headers: retryHeaders, timeout: 15000 })
-            .then(function(r2) { return r2.text(); })
-            .then(function(html2) {
+            .then(function (r2) { return r2.text(); })
+            .then(function (html2) {
               source = _findStreamSource(html2);
               if (!source) return reject(new Error('Deltabit: stream source not found'));
               resolve({ url: source, headers: { 'User-Agent': landingHeaders['User-Agent'], 'Referer': pageUrl, 'Origin': finalOrigin } });
@@ -1180,7 +1203,7 @@ function extractDeltabit(pageUrl, jar) {
         }
         resolve({ url: source, headers: { 'User-Agent': landingHeaders['User-Agent'], 'Referer': pageUrl, 'Origin': finalOrigin } });
       })
-      .catch(function(err) { reject(err); });
+      .catch(function (err) { reject(err); });
   });
 }
 
@@ -1188,7 +1211,7 @@ function extractDeltabit(pageUrl, jar) {
 // FOLLOW REDIRECTOR PAGE  (clicka.cc/adelta/tva/amix -> upstream URL)
 // =========================================================================
 function _followRedirector(url, referer, jar) {
-  return _clickaFetch(url, referer, jar).then(function(res) {
+  return _clickaFetch(url, referer, jar).then(function (res) {
     var text = res.text;
     // Meta refresh
     var metaM = text.match(/<meta[^>]+http-equiv=["']?refresh["']?[^>]+url=["']?([^"'>\s]+)/i);
@@ -1223,16 +1246,16 @@ function resolveClickacc(startUrl, kind, jar) {
   var activeJar = jar || {};
   function loop(hop) {
     if (hop >= 6) return Promise.reject(new Error('Clickacc: max hops reached'));
-    _dbg('[ES_DBG] resolveClickacc hop=' + hop + ' kind=' + kind + ' url=' + (current||'').substring(0,100));
+    _dbg('[ES_DBG] resolveClickacc hop=' + hop + ' kind=' + kind + ' url=' + (current || '').substring(0, 100));
     // Check if current is a redirector URL (clicka.cc/adelta|tva|amix)
     var isRedirector = false;
     try {
       var uPath = new URL(current).pathname;
       var uHost = new URL(current).host.toLowerCase();
       isRedirector = (uHost === 'clicka.cc') && /^\/(adelta|tva|amix)\//.test(uPath);
-    } catch(e) {}
+    } catch (e) { }
     if (isRedirector) {
-      return _followRedirector(current, referer, activeJar).then(function(upUrl) {
+      return _followRedirector(current, referer, activeJar).then(function (upUrl) {
         if (upUrl === current) return Promise.reject(new Error('Clickacc: redirector did not resolve'));
         referer = current;
         current = upUrl;
@@ -1243,20 +1266,20 @@ function resolveClickacc(startUrl, kind, jar) {
     if (kind === 'mix' && _isMixdropHost(current)) {
       var mixMatch = current.match(/\/(?:e|f|emb|embed)\/([A-Za-z0-9]+)/i);
       if (mixMatch) {
-        return tryMixDropHosts(mixMatch[1]).then(function(res) {
+        return tryMixDropHosts(mixMatch[1]).then(function (res) {
           return {
             url: _buildProxyUrl(res.url, 'https://' + res.host + '/', ES_UA),
             name: 'Eurostreaming',
             title: 'MixDrop',
             behaviorHints: { notWebReady: true }
           };
-        }).catch(function() {
+        }).catch(function () {
           return Promise.reject(new Error('MixDrop extraction failed'));
         });
       }
     }
     if (kind === 'tv' && _isTurbovidHost(current)) {
-      return extractTurbovid(current, activeJar).then(function(video) {
+      return extractTurbovid(current, activeJar).then(function (video) {
         return {
           url: _buildProxyUrl(video.url, current, video.headers['User-Agent'], video.headers['Origin']),
           name: 'Eurostreaming',
@@ -1266,7 +1289,7 @@ function resolveClickacc(startUrl, kind, jar) {
       });
     }
     if (kind === 'delta' && _isDeltabitHost(current)) {
-      return extractDeltabit(current, activeJar).then(function(video) {
+      return extractDeltabit(current, activeJar).then(function (video) {
         return {
           url: _buildProxyUrl(video.url, current, video.headers['User-Agent'], video.headers['Origin']),
           name: 'Eurostreaming',
@@ -1276,12 +1299,12 @@ function resolveClickacc(startUrl, kind, jar) {
       });
     }
     // Fetch current URL (captcha page, safego, etc.)
-    return _clickaFetch(current, referer, activeJar).then(function(res) {
+    return _clickaFetch(current, referer, activeJar).then(function (res) {
       var text = res.text;
       var finalUrl = res.url || current;
       // Check for captcha
       if (_hasCaptcha(text)) {
-        return _solveCaptchaPage(text, finalUrl, activeJar).then(function(solved) {
+        return _solveCaptchaPage(text, finalUrl, activeJar).then(function (solved) {
           text = solved.text;
           // After captcha, check for "Proceed to video"
           var proceedUrl = _findProceedToVideoUrl(text);
@@ -1293,7 +1316,7 @@ function resolveClickacc(startUrl, kind, jar) {
           // Check for mixdrop (kind=mix)
           if (kind === 'mix') {
             var md = _findMixdropUrl(text);
-            if (md) return tryMixDropHosts(md.id).then(function(res) {
+            if (md) return tryMixDropHosts(md.id).then(function (res) {
               return {
                 url: _buildProxyUrl(res.url, 'https://' + res.host + '/', ES_UA),
                 name: 'Eurostreaming',
@@ -1323,7 +1346,7 @@ function resolveClickacc(startUrl, kind, jar) {
       // Check for mixdrop (kind=mix)
       if (kind === 'mix') {
         var md2 = _findMixdropUrl(text);
-        if (md2) return tryMixDropHosts(md2.id).then(function(res) {
+        if (md2) return tryMixDropHosts(md2.id).then(function (res) {
           return {
             url: _buildProxyUrl(res.url, 'https://' + res.host + '/', ES_UA),
             name: 'Eurostreaming',
@@ -1353,24 +1376,24 @@ function resolveClickacc(startUrl, kind, jar) {
 var TMDB_API_KEY = '68e094699525b18a70bab2f86b1fa706';
 
 function _tmdbSeriesName(id) {
-  return new Promise(function(resolve) {
+  return new Promise(function (resolve) {
     var cleanId = String(id || '').replace(/^tmdb:/, '');
     if (/^tt\d+$/.test(cleanId)) {
       fetch('https://api.themoviedb.org/3/find/' + cleanId + '?api_key=' + TMDB_API_KEY + '&external_source=imdb_id&language=it-IT', { timeout: 10000 })
-        .then(function(r) { return r.ok ? r.json() : null; })
-        .then(function(data) {
+        .then(function (r) { return r.ok ? r.json() : null; })
+        .then(function (data) {
           if (data && data.tv_results && data.tv_results.length > 0) {
             resolve(data.tv_results[0].name || data.tv_results[0].original_name || null);
           } else {
             resolve(null);
           }
         })
-        .catch(function() { resolve(null); });
+        .catch(function () { resolve(null); });
     } else if (/^\d+$/.test(cleanId)) {
       fetch('https://api.themoviedb.org/3/tv/' + cleanId + '?api_key=' + TMDB_API_KEY + '&language=it-IT', { timeout: 10000 })
-        .then(function(r) { return r.ok ? r.json() : null; })
-        .then(function(data) { resolve(data && (data.name || data.original_name) ? data.name : null); })
-        .catch(function() { resolve(null); });
+        .then(function (r) { return r.ok ? r.json() : null; })
+        .then(function (data) { resolve(data && (data.name || data.original_name) ? data.name : null); })
+        .catch(function () { resolve(null); });
     } else {
       resolve(null);
     }
@@ -1394,16 +1417,16 @@ function getStreams(id, type, season, episode) {
     // Nuvio server sets sandbox.__imdb_id = original IMDb/TMDB id.
     // getStreams(id) receives the TMDB numeric id after Cinemeta translation.
     var sandboxImdb = (typeof __imdb_id !== 'undefined' && __imdb_id) ? String(__imdb_id) : null;
-    var isImdb = function(s) { return /^tt\d+$/.test(String(s || '')); };
-    var isNumeric = function(s) { return /^\d+$/.test(String(s || '')); };
+    var isImdb = function (s) { return /^tt\d+$/.test(String(s || '')); };
+    var isNumeric = function (s) { return /^\d+$/.test(String(s || '')); };
 
     var imdbCandidate = null; // tt... for Cinemeta
     var tmdbCandidate = null; // numeric for TMDB API
 
-    if (isImdb(rawId))    { imdbCandidate = rawId; }
+    if (isImdb(rawId)) { imdbCandidate = rawId; }
     else if (isNumeric(rawId)) { tmdbCandidate = rawId; }
 
-    if (sandboxImdb && isImdb(sandboxImdb))   { imdbCandidate = sandboxImdb; }
+    if (sandboxImdb && isImdb(sandboxImdb)) { imdbCandidate = sandboxImdb; }
     else if (sandboxImdb && isNumeric(sandboxImdb) && !tmdbCandidate) { tmdbCandidate = sandboxImdb; }
 
     function doSearch(title) {
@@ -1420,10 +1443,10 @@ function getStreams(id, type, season, episode) {
 
     function tryTmdbDirect() {
       if (tmdbCandidate) {
-        _tmdbSeriesName(tmdbCandidate).then(function(title) {
+        _tmdbSeriesName(tmdbCandidate).then(function (title) {
           if (title) return doSearch(title);
           resolve([]);
-        }).catch(function() { resolve([]); });
+        }).catch(function () { resolve([]); });
       } else {
         resolve([]);
       }
@@ -1431,14 +1454,14 @@ function getStreams(id, type, season, episode) {
 
     if (imdbCandidate) {
       // 1st: Cinemeta with IMDb
-      getCinemetaMeta('series', imdbCandidate, function(err, meta) {
+      getCinemetaMeta('series', imdbCandidate, function (err, meta) {
         if (meta && meta.name) return doSearch(meta.name);
         // 2nd: TMDB external lookup by IMDb ID
-        _tmdbSeriesName(imdbCandidate).then(function(title) {
+        _tmdbSeriesName(imdbCandidate).then(function (title) {
           if (title) return doSearch(title);
           // 3rd: TMDB direct with numeric ID
           tryTmdbDirect();
-        }).catch(function() { tryTmdbDirect(); });
+        }).catch(function () { tryTmdbDirect(); });
       });
     } else {
       // No IMDb ID — go straight to TMDB numeric
@@ -1479,7 +1502,7 @@ function getEsDomain(cb) {
         if (d && d.domain) return cb('https://' + d.domain);
         var ee = json && json['easter-egg'];
         if (ee && ee.eurostreaming && ee.eurostreaming.domain) return cb('https://' + ee.eurostreaming.domain);
-      } catch(e) {
+      } catch (e) {
         // Maybe it's a text file, try alternative format
         var lines = data.split('\n');
         for (var i = 0; i < lines.length; i++) {
@@ -1606,7 +1629,7 @@ function extractLinksFromPage(domain, pageUrl, seasonNum, episodeNum, cb) {
 
     // Resolve clicka.cc URLs in parallel with an overall scraper timeout of 12s
     var resolved = false;
-    var timer = setTimeout(function() {
+    var timer = setTimeout(function () {
       if (!resolved) {
         resolved = true;
         console.log('[ES] Overall scraper timeout of 12s reached. Returning ' + streams.length + ' streams.');
@@ -1615,33 +1638,33 @@ function extractLinksFromPage(domain, pageUrl, seasonNum, episodeNum, cb) {
     }, 12000);
 
     var pending = clickaTasks.length;
-    clickaTasks.forEach(function(task) {
+    clickaTasks.forEach(function (task) {
       var taskJar = {};
-      var timeoutPromise = new Promise(function(_, reject) {
+      var timeoutPromise = new Promise(function (_, reject) {
         // Individual link timeout
-        setTimeout(function() { reject(new Error('Timeout resolving link')); }, 15000);
+        setTimeout(function () { reject(new Error('Timeout resolving link')); }, 15000);
       });
       Promise.race([
         resolveClickacc(task.url, task.kind, taskJar),
         timeoutPromise
       ])
-      .then(function(streamObj) {
-        if (streamObj && streamObj.url && !seen[streamObj.url]) {
-          seen[streamObj.url] = true;
-          streams.push(streamObj);
-        }
-      })
-      .catch(function(err) {
-        console.log('[ES] clicka resolve failed/timeout: ' + task.url + ' - ' + (err.message || err));
-      })
-      .then(function() {
-        pending--;
-        if (pending === 0 && !resolved) {
-          clearTimeout(timer);
-          resolved = true;
-          cb(streams.length > 0 ? streams : null);
-        }
-      });
+        .then(function (streamObj) {
+          if (streamObj && streamObj.url && !seen[streamObj.url]) {
+            seen[streamObj.url] = true;
+            streams.push(streamObj);
+          }
+        })
+        .catch(function (err) {
+          console.log('[ES] clicka resolve failed/timeout: ' + task.url + ' - ' + (err.message || err));
+        })
+        .then(function () {
+          pending--;
+          if (pending === 0 && !resolved) {
+            clearTimeout(timer);
+            resolved = true;
+            cb(streams.length > 0 ? streams : null);
+          }
+        });
     });
   });
 }
