@@ -1542,11 +1542,21 @@ function extractLinksFromPage(domain, pageUrl, seasonNum, episodeNum, cb) {
 
     if (clickaTasks.length === 0) return cb(streams.length > 0 ? streams : null);
 
-    // Resolve clicka.cc URLs
+    // Resolve clicka.cc URLs in parallel with an overall scraper timeout of 12s
+    var resolved = false;
+    var timer = setTimeout(function() {
+      if (!resolved) {
+        resolved = true;
+        console.log('[ES] Overall scraper timeout of 12s reached. Returning ' + streams.length + ' streams.');
+        cb(streams.length > 0 ? streams : null);
+      }
+    }, 12000);
+
     var pending = clickaTasks.length;
     clickaTasks.forEach(function(task) {
       var taskJar = {};
       var timeoutPromise = new Promise(function(_, reject) {
+        // Individual link timeout remains 25s to allow Turbovid to finish if it can
         setTimeout(function() { reject(new Error('Timeout resolving link')); }, 25000);
       });
       Promise.race([
@@ -1564,7 +1574,11 @@ function extractLinksFromPage(domain, pageUrl, seasonNum, episodeNum, cb) {
       })
       .then(function() {
         pending--;
-        if (pending === 0) cb(streams.length > 0 ? streams : null);
+        if (pending === 0 && !resolved) {
+          clearTimeout(timer);
+          resolved = true;
+          cb(streams.length > 0 ? streams : null);
+        }
       });
     });
   });
