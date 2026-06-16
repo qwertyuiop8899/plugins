@@ -1,16 +1,41 @@
 var TMDB_API_KEY = '68e094699525b18a70bab2f86b1fa706';
 
-function _cbTmdbMeta(id) {
+function _cbTmdbMeta(id, type) {
   return new Promise(function(resolve) {
-    var numId = String(id).replace(/^tmdb:/, '').replace(/^tt\d+$/, '');
-    if (!/^\d+$/.test(numId)) return resolve(null);
-    fetch('https://api.themoviedb.org/3/tv/' + numId + '?api_key=' + TMDB_API_KEY + '&language=it-IT', { timeout: 10000 })
-      .then(function(r) { return r.ok ? r.json() : null; })
-      .then(function(data) {
-        if (!data) return resolve(null);
-        resolve({ name: data.name || data.original_name, releaseInfo: String(data.first_air_date || '').substring(0, 4) });
-      })
-      .catch(function() { resolve(null); });
+    var cleanId = String(id || '').replace(/^tmdb:/, '');
+    if (/^tt\d+$/.test(cleanId)) {
+      fetch('https://api.themoviedb.org/3/find/' + cleanId + '?api_key=' + TMDB_API_KEY + '&external_source=imdb_id&language=it-IT', { timeout: 10000 })
+        .then(function(r) { return r.ok ? r.json() : null; })
+        .then(function(data) {
+          if (!data) return resolve(null);
+          if (data.tv_results && data.tv_results.length > 0) {
+            var tv = data.tv_results[0];
+            return resolve({ name: tv.name || tv.original_name, releaseInfo: String(tv.first_air_date || '').substring(0, 4) });
+          }
+          if (data.movie_results && data.movie_results.length > 0) {
+            var mv = data.movie_results[0];
+            return resolve({ name: mv.title || mv.original_title, releaseInfo: String(mv.release_date || '').substring(0, 4) });
+          }
+          resolve(null);
+        })
+        .catch(function() { resolve(null); });
+    } else if (/^\d+$/.test(cleanId)) {
+      var mediaType = String(type || 'movie').toLowerCase();
+      var endpoint = (mediaType === 'tv' || mediaType === 'series')
+        ? 'https://api.themoviedb.org/3/tv/' + cleanId + '?api_key=' + TMDB_API_KEY + '&language=it-IT'
+        : 'https://api.themoviedb.org/3/movie/' + cleanId + '?api_key=' + TMDB_API_KEY + '&language=it-IT';
+      fetch(endpoint, { timeout: 10000 })
+        .then(function(r) { return r.ok ? r.json() : null; })
+        .then(function(data) {
+          if (!data) return resolve(null);
+          var title = data.name || data.title || data.original_name || data.original_title;
+          var date = data.first_air_date || data.release_date || '';
+          resolve({ name: title, releaseInfo: String(date).substring(0, 4) });
+        })
+        .catch(function() { resolve(null); });
+    } else {
+      resolve(null);
+    }
   });
 }
 
@@ -33,7 +58,7 @@ function getStreams(id, type, season, episode) {
     getCinemetaMeta(cinemetaType, imdbId, function (err, meta) {
       if (meta && meta.name) return doSearch(meta.name, meta.releaseInfo || '');
       // Cinemeta failed — try TMDB API
-      _cbTmdbMeta(imdbId).then(function(tmdbMeta) {
+      _cbTmdbMeta(imdbId, mediaType).then(function(tmdbMeta) {
         if (tmdbMeta && tmdbMeta.name) return doSearch(tmdbMeta.name, tmdbMeta.releaseInfo || '');
         resolve([]);
       });
@@ -238,7 +263,6 @@ function extractMixDrop(mdId, quality, cb) {
   var lastErr = null;
   var tryHost = function (idx) {
     if (idx >= hosts.length) {
-      console.log("[CB01] MixDrop all hosts failed: " + (lastErr || "unknown"));
       return cb(null);
     }
     var host = hosts[idx];
@@ -260,7 +284,6 @@ function extractMixDrop(mdId, quality, cb) {
         lastErr = "stream url not found (host=" + host + " hasPacker=" + hasPacker + " len=" + html.length + ")";
         return tryHost(idx + 1);
       }
-      console.log("[CB01] MixDrop stream: " + streamUrl);
       cb({
         url: streamUrl,
         name: "CB01",
@@ -310,7 +333,6 @@ function processStayonlineUrl(stayUrl, quality, cb) {
   if (!stayIdMatch) return cb(null);
   unwrapStayonline(stayIdMatch[2], function (err, actualUrl) {
     if (!actualUrl) return cb(null);
-    console.log('[CB01] Unwrapped: ' + actualUrl);
     if (!isMixDropHost(actualUrl)) return cb(null);
     var mdIdMatch = actualUrl.match(/\/e\/([A-Za-z0-9]+)/);
     if (!mdIdMatch) return cb(null);
@@ -425,9 +447,7 @@ function extractFromPage(pageUrl, season, episode, cb) {
 
     if (isSeries) {
       block = findEpisodeBlock(html, season, episode);
-      if (!block) {
-        console.log("[CB01] episode block not found for S" + season + "E" + episode + " — trying full page");
-      } else {
+      if (block) {
         targetHtml = block;
       }
     }
