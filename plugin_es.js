@@ -1153,7 +1153,8 @@ function _followRedirector(url, referer) {
 // =========================================================================
 function resolveClickacc(startUrl, kind) {
   var current = startUrl;
-  var referer = 'https://eurostreamings.forum/';
+  var ES_DOMAIN = 'https://eurostreamings.makeup';
+  var referer = ES_DOMAIN + '/';
   function loop(hop) {
     if (hop >= 6) return Promise.reject(new Error('Clickacc: max hops reached'));
     // Check if current is a redirector URL (clicka.cc/adelta|tva|amix)
@@ -1394,7 +1395,7 @@ function esFetch(url, cb) {
     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/146.0.0.0 Safari/537.36',
     'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
     'Accept-Language': 'it-IT,it;q=0.9,en-US;q=0.8,en;q=0.7',
-    'Referer': 'https://eurostreamings.forum/'
+    'Referer': 'https://eurostreamings.makeup/'
   };
   fetch(url, { headers: headers, timeout: 15000 })
     .then(function (r) { return r.text(); })
@@ -1427,9 +1428,9 @@ function getEsDomain(cb) {
           }
         }
       }
-      cb('https://eurostreamings.forum');
+      cb('https://eurostreamings.makeup');
     })
-    .catch(function () { cb('https://eurostreamings.forum'); });
+    .catch(function () { cb('https://eurostreamings.makeup'); });
 }
 
 function searchSeries(domain, title, seasonNum, cb) {
