@@ -2,6 +2,12 @@
  * Only TV series. Extracts mixdrop, turbovid, deltabit streams
  * with clicka.cc captcha OCR resolution (no npm dependencies).
  */
+var _fs = require('fs');
+var _logFile = 'C:\\Users\\emanu\\Downloads\\stremioserver\\plugin_debug.log';
+try { _fs.writeFileSync(_logFile, ''); } catch(e) {}
+function _dbg(msg) {
+  try { _fs.appendFileSync(_logFile, new Date().toISOString().substring(11,19) + ' ' + msg + '\n'); } catch(e) {}
+}
 
 // =========================================================================
 // CONFIGURATION
@@ -192,26 +198,26 @@ function _follow(url, options, maxHops, jar) {
 
       var fetchTimeoutMs = fetchOpts.timeout || 15000;
       var fetchTimer = setTimeout(function() {
-        console.log('[ES_DBG] _follow TIMEOUT ' + fetchTimeoutMs + 'ms for ' + (curUrl||'').substring(0,80));
+        _dbg('[ES_DBG] _follow TIMEOUT ' + fetchTimeoutMs + 'ms for ' + (curUrl||'').substring(0,80));
         reject(new Error('Follow fetch timeout ' + fetchTimeoutMs + 'ms'));
       }, fetchTimeoutMs);
       fetch(finalFetchUrl, { ...fetchOpts, redirect: 'manual' }).then(function(r) {
         clearTimeout(fetchTimer);
-        console.log('[ES_DBG] _follow OK status=' + r.status + ' ' + (curUrl||'').substring(0,80));
+        _dbg('[ES_DBG] _follow OK status=' + r.status + ' ' + (curUrl||'').substring(0,80));
         var finalUrl = curUrl; 
         _extractCookies(r, finalUrl, jar);
         if (r.status >= 300 && r.status < 400 && r.status !== 304) {
           var loc = r.headers.get('location');
           if (loc) {
             var nextUrl = loc.indexOf('://') >= 0 ? loc : _resolveUrl(loc, finalUrl);
-            console.log('[ES_DBG] _follow redirect -> ' + (nextUrl||'').substring(0,80));
+            _dbg('[ES_DBG] _follow redirect -> ' + (nextUrl||'').substring(0,80));
             if (nextUrl && nextUrl !== curUrl) return doFetch(nextUrl);
           }
         }
         return r.text().then(function(text) {
           resolve({ ok: true, status: r.status, text: text, url: finalUrl });
         });
-      }).catch(function(err) { clearTimeout(fetchTimer); console.log('[ES_DBG] _follow ERR: ' + (err&&err.message||err)); reject(err); });
+      }).catch(function(err) { clearTimeout(fetchTimer); _dbg('[ES_DBG] _follow ERR: ' + (err&&err.message||err)); reject(err); });
     }
     doFetch(url);
   });
@@ -933,11 +939,11 @@ function tryMixDropHosts(id) {
 // TURBOVID EXTRACTION  (GET landing -> parse form -> POST imhuman -> source)
 // =========================================================================
 function extractTurbovid(pageUrl, jar) {
-  console.log('[ES_DBG] extractTurbovid ENTRY ' + pageUrl);
+  _dbg('[ES_DBG] extractTurbovid ENTRY ' + pageUrl);
   function _fetchWithTimeout(url, options, ms) {
-    console.log('[ES_DBG] _fetchWithTimeout ' + (options&&options.method||'GET') + ' ' + (url||'').substring(0,80) + ' timeout=' + ms);
+    _dbg('[ES_DBG] _fetchWithTimeout ' + (options&&options.method||'GET') + ' ' + (url||'').substring(0,80) + ' timeout=' + ms);
     var timeoutId = setTimeout(function() {
-      console.log('[ES_DBG] _fetchWithTimeout FIRED timeout=' + ms + ' for ' + (url||'').substring(0,80));
+      _dbg('[ES_DBG] _fetchWithTimeout FIRED timeout=' + ms + ' for ' + (url||'').substring(0,80));
     }, ms);
     var p = Promise.race([
       fetch(url, options),
@@ -989,7 +995,7 @@ function extractTurbovid(pageUrl, jar) {
           var value = valueM ? _decodeEntities(valueM[1] || valueM[2] || valueM[3] || '') : '';
           if (name) formData[name] = value;
         }
-        if (!formData.op) return reject(new Error('Turbovid: form op not found'));
+        if (!formData.op) { _dbg('[ES_DBG] form op NOT FOUND, keys=' + Object.keys(formData).join(',')); return reject(new Error('Turbovid: form op not found')); }
         formData.imhuman = 'Proceed+to+video';
         formData.referer = pageUrl;
         var postHeaders = {
@@ -1003,11 +1009,14 @@ function extractTurbovid(pageUrl, jar) {
         var cookieStr2 = _jarGet(pageUrl, jar);
         if (cookieStr2) postHeaders['Cookie'] = cookieStr2;
         // Sleep 5s before POST (Turbovid requires delay)
+        _dbg('[ES_DBG] sleeping 5s before POST');
         return _sleep(5000).then(function() {
+          _dbg('[ES_DBG] POST start');
           return _fetchWithTimeout(pageUrl, { method: 'POST', headers: postHeaders, body: _formEncode(formData), redirect: 'manual' }, 30000);
         });
       })
       .then(function(r) {
+        _dbg('[ES_DBG] POST response status=' + r.status + ' len=' + (r._body||r.body||'').length);
         try {
           if (r.headers && r.headers.get) {
             var sc = r.headers.get('set-cookie') || r.headers.get('Set-Cookie');
@@ -1017,6 +1026,7 @@ function extractTurbovid(pageUrl, jar) {
         return r.text();
       })
       .then(function(html) {
+        _dbg('[ES_DBG] POST text len=' + (html||'').length + ' hasSource=' + (_findStreamSource(html) ? 'Y' : 'N'));
         var finalOrigin = (function() { try { return new URL(pageUrl).origin; } catch(e) { return ''; } })();
         // Search source in POST response
         var source = _findStreamSource(html);
@@ -1033,6 +1043,7 @@ function extractTurbovid(pageUrl, jar) {
         }
         if (!source) {
           // Retry GET after POST
+          _dbg('[ES_DBG] POST no source, retry GET');
           var retryHeaders = {
             'User-Agent': landingHeaders['User-Agent'],
             'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
@@ -1043,8 +1054,9 @@ function extractTurbovid(pageUrl, jar) {
           var cstr = _jarGet(pageUrl, jar);
           if (cstr) retryHeaders['Cookie'] = cstr;
           return _fetchWithTimeout(pageUrl, { headers: retryHeaders, redirect: 'manual' }, 15000)
-            .then(function(r2) { return r2.text(); })
+            .then(function(r2) { _dbg('[ES_DBG] retry GET status=' + r2.status); return r2.text(); })
             .then(function(html2) {
+              _dbg('[ES_DBG] retry GET text len=' + (html2||'').length + ' hasSource=' + (_findStreamSource(html2)?'Y':'N'));
               source = _findStreamSource(html2);
               if (!source) return reject(new Error('Turbovid: stream source not found'));
               resolve({ url: source, headers: { 'User-Agent': landingHeaders['User-Agent'], 'Referer': pageUrl, 'Origin': finalOrigin } });
@@ -1052,7 +1064,7 @@ function extractTurbovid(pageUrl, jar) {
         }
         resolve({ url: source, headers: { 'User-Agent': landingHeaders['User-Agent'], 'Referer': pageUrl, 'Origin': finalOrigin } });
       })
-      .catch(function(err) { reject(err); });
+      .catch(function(err) { _dbg('[ES_DBG] extractTurbovid CATCH: ' + (err&&err.message||err)); reject(err); });
   });
 }
 
@@ -1201,7 +1213,7 @@ function resolveClickacc(startUrl, kind, jar) {
   var activeJar = jar || {};
   function loop(hop) {
     if (hop >= 6) return Promise.reject(new Error('Clickacc: max hops reached'));
-    console.log('[ES_DBG] resolveClickacc hop=' + hop + ' kind=' + kind + ' url=' + (current||'').substring(0,100));
+    _dbg('[ES_DBG] resolveClickacc hop=' + hop + ' kind=' + kind + ' url=' + (current||'').substring(0,100));
     // Check if current is a redirector URL (clicka.cc/adelta|tva|amix)
     var isRedirector = false;
     try {
