@@ -813,7 +813,7 @@ function unpackPackedJs(packed) {
 // =========================================================================
 // CLICKA.CC CAPTCHA SOLVER
 // =========================================================================
-function _solveCaptchaPage(text, currentUrl) {
+function _solveCaptchaPage(text, currentUrl, jar) {
   return new Promise(function(resolve, reject) {
     if (!_hasCaptcha(text)) return resolve({ text: text, url: currentUrl });
     var imageSrc = _captchaImageSrc(text);
@@ -826,7 +826,7 @@ function _solveCaptchaPage(text, currentUrl) {
     }
     var action = _findCaptchaFormAction(text, currentUrl);
     var formData = _formDataFromInputs(text, guess);
-    _clickaPost(action, formData, currentUrl)
+    _clickaPost(action, formData, currentUrl, jar)
       .then(function(postRes) {
         if (_hasCaptcha(postRes.text)) {
           var _pv = _findProceedToVideoUrl(postRes.text);
@@ -909,7 +909,7 @@ function tryMixDropHosts(id) {
 // =========================================================================
 // TURBOVID EXTRACTION  (GET landing -> parse form -> POST imhuman -> source)
 // =========================================================================
-function extractTurbovid(pageUrl) {
+function extractTurbovid(pageUrl, jar) {
   return new Promise(function(resolve, reject) {
     var landingHeaders = {
       'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36',
@@ -918,14 +918,14 @@ function extractTurbovid(pageUrl) {
       'Accept-Encoding': 'identity',
       'Referer': 'https://safego.cc/'
     };
-    var cookieStr = _jarGet(pageUrl);
+    var cookieStr = _jarGet(pageUrl, jar);
     if (cookieStr) landingHeaders['Cookie'] = cookieStr;
     fetch(pageUrl, { headers: landingHeaders, timeout: 15000 })
       .then(function(r) {
         try {
           if (r.headers && r.headers.get) {
             var sc = r.headers.get('set-cookie') || r.headers.get('Set-Cookie');
-            if (sc) _jarSet(pageUrl, sc);
+            if (sc) _jarSet(pageUrl, sc, jar);
           }
         } catch(e) {}
         return r.text();
@@ -959,7 +959,7 @@ function extractTurbovid(pageUrl) {
           'Origin': finalOrigin,
           'Referer': pageUrl
         };
-        var cookieStr2 = _jarGet(pageUrl);
+        var cookieStr2 = _jarGet(pageUrl, jar);
         if (cookieStr2) postHeaders['Cookie'] = cookieStr2;
         // Sleep 5s before POST (Turbovid requires delay)
         return _sleep(5000).then(function() {
@@ -970,7 +970,7 @@ function extractTurbovid(pageUrl) {
         try {
           if (r.headers && r.headers.get) {
             var sc = r.headers.get('set-cookie') || r.headers.get('Set-Cookie');
-            if (sc) _jarSet(pageUrl, sc);
+            if (sc) _jarSet(pageUrl, sc, jar);
           }
         } catch(e) {}
         return r.text();
@@ -999,7 +999,7 @@ function extractTurbovid(pageUrl) {
             'Accept-Encoding': 'identity',
             'Referer': 'https://safego.cc/'
           };
-          var cstr = _jarGet(pageUrl);
+          var cstr = _jarGet(pageUrl, jar);
           if (cstr) retryHeaders['Cookie'] = cstr;
           return fetch(pageUrl, { headers: retryHeaders, timeout: 15000 })
             .then(function(r2) { return r2.text(); })
@@ -1018,7 +1018,7 @@ function extractTurbovid(pageUrl) {
 // =========================================================================
 // DELTABIT EXTRACTION (similar to Turbovid but imhuman='' and 2.5s sleep)
 // =========================================================================
-function extractDeltabit(pageUrl) {
+function extractDeltabit(pageUrl, jar) {
   return new Promise(function(resolve, reject) {
     var landingHeaders = {
       'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36',
@@ -1027,14 +1027,14 @@ function extractDeltabit(pageUrl) {
       'Accept-Encoding': 'identity',
       'Referer': 'https://safego.cc/'
     };
-    var cookieStr = _jarGet(pageUrl);
+    var cookieStr = _jarGet(pageUrl, jar);
     if (cookieStr) landingHeaders['Cookie'] = cookieStr;
     fetch(pageUrl, { headers: landingHeaders, timeout: 15000 })
       .then(function(r) {
         try {
           if (r.headers && r.headers.get) {
             var sc = r.headers.get('set-cookie') || r.headers.get('Set-Cookie');
-            if (sc) _jarSet(pageUrl, sc);
+            if (sc) _jarSet(pageUrl, sc, jar);
           }
         } catch(e) {}
         return r.text();
@@ -1067,7 +1067,7 @@ function extractDeltabit(pageUrl) {
           'Origin': finalOrigin,
           'Referer': pageUrl
         };
-        var cookieStr2 = _jarGet(pageUrl);
+        var cookieStr2 = _jarGet(pageUrl, jar);
         if (cookieStr2) postHeaders['Cookie'] = cookieStr2;
         // Sleep 2.5s before POST
         return _sleep(2500).then(function() {
@@ -1078,7 +1078,7 @@ function extractDeltabit(pageUrl) {
         try {
           if (r.headers && r.headers.get) {
             var sc = r.headers.get('set-cookie') || r.headers.get('Set-Cookie');
-            if (sc) _jarSet(pageUrl, sc);
+            if (sc) _jarSet(pageUrl, sc, jar);
           }
         } catch(e) {}
         return r.text();
@@ -1105,7 +1105,7 @@ function extractDeltabit(pageUrl) {
             'Accept-Encoding': 'identity',
             'Referer': 'https://safego.cc/'
           };
-          var cstr = _jarGet(pageUrl);
+          var cstr = _jarGet(pageUrl, jar);
           if (cstr) retryHeaders['Cookie'] = cstr;
           return fetch(pageUrl, { headers: retryHeaders, timeout: 15000 })
             .then(function(r2) { return r2.text(); })
@@ -1124,8 +1124,8 @@ function extractDeltabit(pageUrl) {
 // =========================================================================
 // FOLLOW REDIRECTOR PAGE  (clicka.cc/adelta/tva/amix -> upstream URL)
 // =========================================================================
-function _followRedirector(url, referer) {
-  return _clickaFetch(url, referer).then(function(res) {
+function _followRedirector(url, referer, jar) {
+  return _clickaFetch(url, referer, jar).then(function(res) {
     var text = res.text;
     // Meta refresh
     var metaM = text.match(/<meta[^>]+http-equiv=["']?refresh["']?[^>]+url=["']?([^"'>\s]+)/i);
@@ -1153,10 +1153,11 @@ function _followRedirector(url, referer) {
 // =========================================================================
 // CLICKA.CC MAIN RESOLVER
 // =========================================================================
-function resolveClickacc(startUrl, kind) {
+function resolveClickacc(startUrl, kind, jar) {
   var current = startUrl;
   var ES_DOMAIN = 'https://eurostreamings.makeup';
   var referer = ES_DOMAIN + '/';
+  var activeJar = jar || {};
   function loop(hop) {
     if (hop >= 6) return Promise.reject(new Error('Clickacc: max hops reached'));
     // Check if current is a redirector URL (clicka.cc/adelta|tva|amix)
@@ -1167,7 +1168,7 @@ function resolveClickacc(startUrl, kind) {
       isRedirector = (uHost === 'clicka.cc') && /^\/(adelta|tva|amix)\//.test(uPath);
     } catch(e) {}
     if (isRedirector) {
-      return _followRedirector(current, referer).then(function(upUrl) {
+      return _followRedirector(current, referer, activeJar).then(function(upUrl) {
         if (upUrl === current) return Promise.reject(new Error('Clickacc: redirector did not resolve'));
         referer = current;
         current = upUrl;
@@ -1195,22 +1196,22 @@ function resolveClickacc(startUrl, kind) {
       }
     }
     if (kind === 'tv' && _isTurbovidHost(current)) {
-      return extractTurbovid(current).then(function(video) {
+      return extractTurbovid(current, activeJar).then(function(video) {
         return { url: video.url, name: 'Eurostreaming', title: 'Turbovid', behaviorHints: { notWebReady: true }, headers: video.headers };
       });
     }
     if (kind === 'delta' && _isDeltabitHost(current)) {
-      return extractDeltabit(current).then(function(video) {
+      return extractDeltabit(current, activeJar).then(function(video) {
         return { url: video.url, name: 'Eurostreaming', title: 'Deltabit', behaviorHints: { notWebReady: true }, headers: video.headers };
       });
     }
     // Fetch current URL (captcha page, safego, etc.)
-    return _clickaFetch(current, referer).then(function(res) {
+    return _clickaFetch(current, referer, activeJar).then(function(res) {
       var text = res.text;
       var finalUrl = res.url || current;
       // Check for captcha
       if (_hasCaptcha(text)) {
-        return _solveCaptchaPage(text, finalUrl).then(function(solved) {
+        return _solveCaptchaPage(text, finalUrl, activeJar).then(function(solved) {
           text = solved.text;
           // After captcha, check for "Proceed to video"
           var proceedUrl = _findProceedToVideoUrl(text);
@@ -1544,11 +1545,12 @@ function extractLinksFromPage(domain, pageUrl, seasonNum, episodeNum, cb) {
     // Resolve clicka.cc URLs
     var pending = clickaTasks.length;
     clickaTasks.forEach(function(task) {
+      var taskJar = {};
       var timeoutPromise = new Promise(function(_, reject) {
-        setTimeout(function() { reject(new Error('Timeout resolving link')); }, 12000);
+        setTimeout(function() { reject(new Error('Timeout resolving link')); }, 25000);
       });
       Promise.race([
-        resolveClickacc(task.url, task.kind),
+        resolveClickacc(task.url, task.kind, taskJar),
         timeoutPromise
       ])
       .then(function(streamObj) {
