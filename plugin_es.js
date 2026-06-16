@@ -192,23 +192,26 @@ function _follow(url, options, maxHops, jar) {
 
       var fetchTimeoutMs = fetchOpts.timeout || 15000;
       var fetchTimer = setTimeout(function() {
+        console.log('[ES_DBG] _follow TIMEOUT ' + fetchTimeoutMs + 'ms for ' + (curUrl||'').substring(0,80));
         reject(new Error('Follow fetch timeout ' + fetchTimeoutMs + 'ms'));
       }, fetchTimeoutMs);
       fetch(finalFetchUrl, { ...fetchOpts, redirect: 'manual' }).then(function(r) {
         clearTimeout(fetchTimer);
+        console.log('[ES_DBG] _follow OK status=' + r.status + ' ' + (curUrl||'').substring(0,80));
         var finalUrl = curUrl; 
         _extractCookies(r, finalUrl, jar);
         if (r.status >= 300 && r.status < 400 && r.status !== 304) {
           var loc = r.headers.get('location');
           if (loc) {
             var nextUrl = loc.indexOf('://') >= 0 ? loc : _resolveUrl(loc, finalUrl);
+            console.log('[ES_DBG] _follow redirect -> ' + (nextUrl||'').substring(0,80));
             if (nextUrl && nextUrl !== curUrl) return doFetch(nextUrl);
           }
         }
         return r.text().then(function(text) {
           resolve({ ok: true, status: r.status, text: text, url: finalUrl });
         });
-      }).catch(function(err) { clearTimeout(fetchTimer); reject(err); });
+      }).catch(function(err) { clearTimeout(fetchTimer); console.log('[ES_DBG] _follow ERR: ' + (err&&err.message||err)); reject(err); });
     }
     doFetch(url);
   });
@@ -930,13 +933,23 @@ function tryMixDropHosts(id) {
 // TURBOVID EXTRACTION  (GET landing -> parse form -> POST imhuman -> source)
 // =========================================================================
 function extractTurbovid(pageUrl, jar) {
+  console.log('[ES_DBG] extractTurbovid ENTRY ' + pageUrl);
   function _fetchWithTimeout(url, options, ms) {
-    return Promise.race([
+    console.log('[ES_DBG] _fetchWithTimeout ' + (options&&options.method||'GET') + ' ' + (url||'').substring(0,80) + ' timeout=' + ms);
+    var timeoutId = setTimeout(function() {
+      console.log('[ES_DBG] _fetchWithTimeout FIRED timeout=' + ms + ' for ' + (url||'').substring(0,80));
+    }, ms);
+    var p = Promise.race([
       fetch(url, options),
       new Promise(function(_, reject) {
-        setTimeout(function() { reject(new Error('Fetch timeout ' + ms + 'ms')); }, ms);
+        setTimeout(function() {
+          clearTimeout(timeoutId);
+          reject(new Error('Fetch timeout ' + ms + 'ms'));
+        }, ms);
       })
     ]);
+    p.then(function() { clearTimeout(timeoutId); }, function() { clearTimeout(timeoutId); });
+    return p;
   }
   return new Promise(function(resolve, reject) {
     var landingHeaders = {
@@ -1188,6 +1201,7 @@ function resolveClickacc(startUrl, kind, jar) {
   var activeJar = jar || {};
   function loop(hop) {
     if (hop >= 6) return Promise.reject(new Error('Clickacc: max hops reached'));
+    console.log('[ES_DBG] resolveClickacc hop=' + hop + ' kind=' + kind + ' url=' + (current||'').substring(0,100));
     // Check if current is a redirector URL (clicka.cc/adelta|tva|amix)
     var isRedirector = false;
     try {
