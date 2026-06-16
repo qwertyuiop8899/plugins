@@ -3,6 +3,19 @@
  * with clicka.cc captcha OCR resolution (no npm dependencies).
  */
 
+var _originalFetch = fetch;
+fetch = function(url, options) {
+  var targetUrl = url;
+  if (typeof url === 'string') {
+    if (url.indexOf('turbovid') >= 0 || url.indexOf('deltabit') >= 0) {
+      if (url.indexOf('workers.dev') < 0) {
+        targetUrl = 'https://vidclick.leanhhu061208-775.workers.dev/?url=' + encodeURIComponent(url);
+      }
+    }
+  }
+  return _originalFetch(targetUrl, options);
+};
+
 // =========================================================================
 // CONFIGURATION
 // =========================================================================
@@ -1560,10 +1573,10 @@ function extractLinksFromPage(domain, pageUrl, seasonNum, episodeNum, cb) {
     var timer = setTimeout(function() {
       if (!resolved) {
         resolved = true;
-        console.log('[ES] Overall scraper timeout of 16s reached. Returning ' + streams.length + ' streams.');
+        console.log('[ES] Overall scraper timeout of 12s reached. Returning ' + streams.length + ' streams.');
         cb(streams.length > 0 ? streams : null);
       }
-    }, 16000);
+    }, 12000);
 
     var pending = clickaTasks.length;
     clickaTasks.forEach(function(task) {
