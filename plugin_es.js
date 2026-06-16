@@ -190,8 +190,12 @@ function _follow(url, options, maxHops, jar) {
         fetchOpts.headers['Connection'] = 'keep-alive';
       }
 
-      if (!fetchOpts.timeout) fetchOpts.timeout = 15000;
+      var fetchTimeoutMs = fetchOpts.timeout || 15000;
+      var fetchTimer = setTimeout(function() {
+        reject(new Error('Follow fetch timeout ' + fetchTimeoutMs + 'ms'));
+      }, fetchTimeoutMs);
       fetch(finalFetchUrl, { ...fetchOpts, redirect: 'manual' }).then(function(r) {
+        clearTimeout(fetchTimer);
         var finalUrl = curUrl; 
         _extractCookies(r, finalUrl, jar);
         if (r.status >= 300 && r.status < 400 && r.status !== 304) {
@@ -204,7 +208,7 @@ function _follow(url, options, maxHops, jar) {
         return r.text().then(function(text) {
           resolve({ ok: true, status: r.status, text: text, url: finalUrl });
         });
-      }).catch(function(err) { reject(err); });
+      }).catch(function(err) { clearTimeout(fetchTimer); reject(err); });
     }
     doFetch(url);
   });
@@ -926,6 +930,14 @@ function tryMixDropHosts(id) {
 // TURBOVID EXTRACTION  (GET landing -> parse form -> POST imhuman -> source)
 // =========================================================================
 function extractTurbovid(pageUrl, jar) {
+  function _fetchWithTimeout(url, options, ms) {
+    return Promise.race([
+      fetch(url, options),
+      new Promise(function(_, reject) {
+        setTimeout(function() { reject(new Error('Fetch timeout ' + ms + 'ms')); }, ms);
+      })
+    ]);
+  }
   return new Promise(function(resolve, reject) {
     var landingHeaders = {
       'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36',
@@ -936,7 +948,7 @@ function extractTurbovid(pageUrl, jar) {
     };
     var cookieStr = _jarGet(pageUrl, jar);
     if (cookieStr) landingHeaders['Cookie'] = cookieStr;
-    fetch(pageUrl, { headers: landingHeaders, timeout: 15000 })
+    _fetchWithTimeout(pageUrl, { headers: landingHeaders, redirect: 'manual' }, 15000)
       .then(function(r) {
         try {
           if (r.headers && r.headers.get) {
@@ -979,7 +991,7 @@ function extractTurbovid(pageUrl, jar) {
         if (cookieStr2) postHeaders['Cookie'] = cookieStr2;
         // Sleep 5s before POST (Turbovid requires delay)
         return _sleep(5000).then(function() {
-          return fetch(pageUrl, { method: 'POST', headers: postHeaders, body: _formEncode(formData), timeout: 30000 });
+          return _fetchWithTimeout(pageUrl, { method: 'POST', headers: postHeaders, body: _formEncode(formData), redirect: 'manual' }, 30000);
         });
       })
       .then(function(r) {
@@ -1017,7 +1029,7 @@ function extractTurbovid(pageUrl, jar) {
           };
           var cstr = _jarGet(pageUrl, jar);
           if (cstr) retryHeaders['Cookie'] = cstr;
-          return fetch(pageUrl, { headers: retryHeaders, timeout: 15000 })
+          return _fetchWithTimeout(pageUrl, { headers: retryHeaders, redirect: 'manual' }, 15000)
             .then(function(r2) { return r2.text(); })
             .then(function(html2) {
               source = _findStreamSource(html2);
