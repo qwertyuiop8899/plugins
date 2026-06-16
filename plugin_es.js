@@ -1560,10 +1560,10 @@ function extractLinksFromPage(domain, pageUrl, seasonNum, episodeNum, cb) {
     var timer = setTimeout(function() {
       if (!resolved) {
         resolved = true;
-        console.log('[ES] Overall scraper timeout of 12s reached. Returning ' + streams.length + ' streams.');
+        console.log('[ES] Overall scraper timeout of 16s reached. Returning ' + streams.length + ' streams.');
         cb(streams.length > 0 ? streams : null);
       }
-    }, 12000);
+    }, 16000);
 
     var pending = clickaTasks.length;
     clickaTasks.forEach(function(task) {
