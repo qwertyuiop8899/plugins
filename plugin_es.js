@@ -1549,41 +1549,6 @@ function extractLinksFromPage(domain, pageUrl, seasonNum, episodeNum, cb) {
     while ((cm = clickaRe.exec(block)) !== null) {
       if (!seen[cm[0]]) { seen[cm[0]] = true; clickaTasks.push({ url: cm[0], kind: cm[1] }); }
     }
-    // Also scan entire HTML for any clicka.cc URLs the block might have missed
-    while ((cm = clickaRe.exec(html)) !== null) {
-      if (!seen[cm[0]]) { seen[cm[0]] = true; clickaTasks.push({ url: cm[0], kind: cm[1] }); }
-    }
-
-    // Also extract direct MixDrop URLs (from entire page)
-    var mdRe = new RegExp('https?://[^\\s"\'>]*' + MD_PAT + '[^\\s"\'>]*/[A-Za-z0-9]+', 'gi');
-    while ((cm = mdRe.exec(html)) !== null) {
-      if (!seen[cm[0]]) {
-        seen[cm[0]] = true;
-        streams.push({
-          url: cm[0],
-          name: 'Eurostreaming',
-          title: 'MixDrop',
-          behaviorHints: { notWebReady: true }
-        });
-      }
-    }
-    // Search inside JS strings too
-    var jsUrlRe = /["'](https?:\/\/[^"']+)["']/g;
-    var jm;
-    while ((jm = jsUrlRe.exec(html)) !== null) {
-      var mdRe2 = new RegExp('https?://[^\\s"\'>]*' + MD_PAT + '[^\\s"\'>]*/[A-Za-z0-9]+', 'gi');
-      while ((cm = mdRe2.exec(jm[1])) !== null) {
-        if (!seen[cm[0]]) {
-          seen[cm[0]] = true;
-          streams.push({
-            url: cm[0],
-            name: 'Eurostreaming',
-            title: 'MixDrop',
-            behaviorHints: { notWebReady: true }
-          });
-        }
-      }
-    }
 
     if (clickaTasks.length === 0) return cb(streams.length > 0 ? streams : null);
 
