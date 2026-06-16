@@ -1,9 +1,9 @@
 {
-  "name": "ToastStream",
-  "version": "1.0.0",
+  "name": "ToastFlix",
+  "version": "1.0.1",
   "scrapers": [
     {
-      "id": "toaststream-cb01",
+      "id": "toastflix-cb01",
       "name": "CB01",
       "version": "1.0.0",
       "description": "Film e Serie TV da CB01 - MixDrop links",
@@ -16,7 +16,7 @@
       "enabled": true
     },
     {
-      "id": "toaststream-eurostreaming",
+      "id": "toastflix-eurostreaming",
       "name": "Eurostreaming",
       "version": "1.0.0",
       "description": "Serie TV da Eurostreaming",
@@ -29,7 +29,7 @@
       "enabled": true
     },
     {
-      "id": "toaststream-vidxgo",
+      "id": "toastflix-vidxgo",
       "name": "Vidxgo",
       "version": "1.0.0",
       "description": "Film e Serie TV da Vidxgo",
