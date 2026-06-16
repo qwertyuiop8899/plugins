@@ -2,13 +2,6 @@
  * Only TV series. Extracts mixdrop, turbovid, deltabit streams
  * with clicka.cc captcha OCR resolution (no npm dependencies).
  */
-var _fs = require('fs');
-var _logFile = 'C:\\Users\\emanu\\Downloads\\stremioserver\\plugin_debug.log';
-try { _fs.writeFileSync(_logFile, ''); } catch (e) { }
-function _dbg(msg) {
-  try { _fs.appendFileSync(_logFile, new Date().toISOString().substring(11, 19) + ' ' + msg + '\n'); } catch (e) { }
-}
-
 // =========================================================================
 // CONFIGURATION
 // =========================================================================
@@ -198,26 +191,23 @@ function _follow(url, options, maxHops, jar) {
 
       var fetchTimeoutMs = fetchOpts.timeout || 15000;
       var fetchTimer = setTimeout(function () {
-        _dbg('[ES_DBG] _follow TIMEOUT ' + fetchTimeoutMs + 'ms for ' + (curUrl || '').substring(0, 80));
         reject(new Error('Follow fetch timeout ' + fetchTimeoutMs + 'ms'));
       }, fetchTimeoutMs);
       fetch(finalFetchUrl, { ...fetchOpts, redirect: 'manual' }).then(function (r) {
         clearTimeout(fetchTimer);
-        _dbg('[ES_DBG] _follow OK status=' + r.status + ' ' + (curUrl || '').substring(0, 80));
         var finalUrl = curUrl;
         _extractCookies(r, finalUrl, jar);
         if (r.status >= 300 && r.status < 400 && r.status !== 304) {
           var loc = r.headers.get('location');
           if (loc) {
             var nextUrl = loc.indexOf('://') >= 0 ? loc : _resolveUrl(loc, finalUrl);
-            _dbg('[ES_DBG] _follow redirect -> ' + (nextUrl || '').substring(0, 80));
             if (nextUrl && nextUrl !== curUrl) return doFetch(nextUrl);
           }
         }
         return r.text().then(function (text) {
           resolve({ ok: true, status: r.status, text: text, url: finalUrl });
         });
-      }).catch(function (err) { clearTimeout(fetchTimer); _dbg('[ES_DBG] _follow ERR: ' + (err && err.message || err)); reject(err); });
+      }).catch(function (err) { clearTimeout(fetchTimer); reject(err); });
     }
     doFetch(url);
   });
@@ -959,23 +949,15 @@ function tryMixDropHosts(id) {
 // TURBOVID EXTRACTION  (GET landing -> parse form -> POST imhuman -> source)
 // =========================================================================
 function extractTurbovid(pageUrl, jar) {
-  _dbg('[ES_DBG] extractTurbovid ENTRY ' + pageUrl);
   function _fetchWithTimeout(url, options, ms) {
-    _dbg('[ES_DBG] _fetchWithTimeout ' + (options && options.method || 'GET') + ' ' + (url || '').substring(0, 80) + ' timeout=' + ms);
-    var timeoutId = setTimeout(function () {
-      _dbg('[ES_DBG] _fetchWithTimeout FIRED timeout=' + ms + ' for ' + (url || '').substring(0, 80));
-    }, ms);
-    var p = Promise.race([
+    return Promise.race([
       fetch(url, options),
       new Promise(function (_, reject) {
         setTimeout(function () {
-          clearTimeout(timeoutId);
           reject(new Error('Fetch timeout ' + ms + 'ms'));
         }, ms);
       })
     ]);
-    p.then(function () { clearTimeout(timeoutId); }, function () { clearTimeout(timeoutId); });
-    return p;
   }
   return new Promise(function (resolve, reject) {
     var landingHeaders = {
@@ -1015,7 +997,7 @@ function extractTurbovid(pageUrl, jar) {
           var value = valueM ? _decodeEntities(valueM[1] || valueM[2] || valueM[3] || '') : '';
           if (name) formData[name] = value;
         }
-        if (!formData.op) { _dbg('[ES_DBG] form op NOT FOUND, keys=' + Object.keys(formData).join(',')); return reject(new Error('Turbovid: form op not found')); }
+        if (!formData.op) { return reject(new Error('Turbovid: form op not found')); }
         formData.imhuman = 'Proceed+to+video';
         formData.referer = pageUrl;
         var postHeaders = {
@@ -1029,14 +1011,11 @@ function extractTurbovid(pageUrl, jar) {
         var cookieStr2 = _jarGet(pageUrl, jar);
         if (cookieStr2) postHeaders['Cookie'] = cookieStr2;
         // Sleep 5s before POST (Turbovid requires delay)
-        _dbg('[ES_DBG] sleeping 5s before POST');
         return _sleep(5000).then(function () {
-          _dbg('[ES_DBG] POST start');
           return _fetchWithTimeout(pageUrl, { method: 'POST', headers: postHeaders, body: _formEncode(formData), redirect: 'manual' }, 30000);
         });
       })
       .then(function (r) {
-        _dbg('[ES_DBG] POST response status=' + r.status + ' len=' + (r._body || r.body || '').length);
         try {
           if (r.headers && r.headers.get) {
             var sc = r.headers.get('set-cookie') || r.headers.get('Set-Cookie');
@@ -1046,37 +1025,22 @@ function extractTurbovid(pageUrl, jar) {
         return r.text();
       })
       .then(function (html) {
-        _dbg('[ES_DBG] POST text len=' + (html || '').length + ' hasSource=' + (_findStreamSource(html) ? 'Y' : 'N'));
-        try { _fs.writeFileSync('C:\\Users\\emanu\\Downloads\\stremioserver\\post_html_dump.txt', html || ''); _dbg('[ES_DBG] POST html DUMPED'); } catch (e) { _dbg('[ES_DBG] POST html DUMP ERR: ' + (e.message || e)); }
-        _dbg('[ES_DBG] STEP A: after dump');
         var finalOrigin = (function () { try { return new URL(pageUrl).origin; } catch (e) { return ''; } })();
-        _dbg('[ES_DBG] STEP B: finalOrigin=' + finalOrigin);
         var source = _findStreamSource(html);
-        _dbg('[ES_DBG] STEP C: _findStreamSource on raw html: ' + (source ? source.substring(0, 60) : 'NULL'));
         if (!source) {
-          _dbg('[ES_DBG] STEP D: entering packer block');
           var combined = html;
           var packerRe = /eval\(function\(p,a,c,k,e,d\)[\s\S]*?\}\([\s\S]*?\.split\(['"]\|['"]\)[\s\S]*?\)\s*\)/g;
           var pm;
-          var packerFound = 0;
-          _dbg('[ES_DBG] STEP E: before while loop');
           while ((pm = packerRe.exec(html)) !== null) {
-            packerFound++;
-            _dbg('[ES_DBG] packerRe MATCH #' + packerFound + ' len=' + pm[0].length + ' idx=' + pm.index);
             var unpacked = unpackPackedJs(pm[0]);
-            _dbg('[ES_DBG] unpackPackedJs returned: ' + (unpacked ? 'OK len=' + unpacked.length : 'NULL'));
             if (unpacked) {
               combined += '\n' + unpacked;
-              _dbg('[ES_DBG] unpacked JS (first 200): ' + (unpacked || '').substring(0, 200));
             }
           }
-          _dbg('[ES_DBG] STEP F: while done, matches=' + packerFound);
           source = _findStreamSource(combined);
-          _dbg('[ES_DBG] STEP G: after unpack, _findStreamSource: ' + (source ? source.substring(0, 80) : 'NULL'));
         }
         if (!source) {
           // Retry GET after POST
-          _dbg('[ES_DBG] POST no source, retry GET');
           var retryHeaders = {
             'User-Agent': landingHeaders['User-Agent'],
             'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
@@ -1087,9 +1051,8 @@ function extractTurbovid(pageUrl, jar) {
           var cstr = _jarGet(pageUrl, jar);
           if (cstr) retryHeaders['Cookie'] = cstr;
           return _fetchWithTimeout(pageUrl, { headers: retryHeaders, redirect: 'manual' }, 15000)
-            .then(function (r2) { _dbg('[ES_DBG] retry GET status=' + r2.status); return r2.text(); })
+            .then(function (r2) { return r2.text(); })
             .then(function (html2) {
-              _dbg('[ES_DBG] retry GET text len=' + (html2 || '').length + ' hasSource=' + (_findStreamSource(html2) ? 'Y' : 'N'));
               source = _findStreamSource(html2);
               if (!source) return reject(new Error('Turbovid: stream source not found'));
               resolve({ url: source, headers: { 'User-Agent': landingHeaders['User-Agent'], 'Referer': pageUrl, 'Origin': finalOrigin } });
@@ -1097,7 +1060,7 @@ function extractTurbovid(pageUrl, jar) {
         }
         resolve({ url: source, headers: { 'User-Agent': landingHeaders['User-Agent'], 'Referer': pageUrl, 'Origin': finalOrigin } });
       })
-      .catch(function (err) { _dbg('[ES_DBG] extractTurbovid CATCH: ' + (err && err.message || err)); reject(err); });
+      .catch(function (err) { reject(err); });
   });
 }
 
@@ -1246,7 +1209,6 @@ function resolveClickacc(startUrl, kind, jar) {
   var activeJar = jar || {};
   function loop(hop) {
     if (hop >= 6) return Promise.reject(new Error('Clickacc: max hops reached'));
-    _dbg('[ES_DBG] resolveClickacc hop=' + hop + ' kind=' + kind + ' url=' + (current || '').substring(0, 100));
     // Check if current is a redirector URL (clicka.cc/adelta|tva|amix)
     var isRedirector = false;
     try {
@@ -1435,7 +1397,6 @@ function getStreams(id, type, season, episode) {
         searchSeries(domain, title, seasonNum, function (pageUrl) {
           if (!pageUrl) return resolve([]);
           extractLinksFromPage(domain, pageUrl, seasonNum, episodeNum, function (streams) {
-            _dbg('[ES_DBG] extractLinksFromPage cb called, streams=' + (streams ? streams.length : 'null'));
             resolve(streams || []);
           });
         });
@@ -1571,8 +1532,8 @@ function extractLinksFromPage(domain, pageUrl, seasonNum, episodeNum, cb) {
     // Match episode line: "1×01" / "1&#215;01" / "S01E01" (like Python es.py)
     var ep2 = episodeNum < 10 ? '0' + String(episodeNum) : String(episodeNum);
     var patterns = [
-      seasonNum + '\\s*(?:&#215;|×|x)\\s*0?' + episodeNum + '[\\s\\S]{0,1800}?(?=<br\\s*/?>|</div>)',
-      'S0?' + seasonNum + 'E' + ep2 + '[\\s\\S]{0,1800}?(?=<br\\s*/?>|</div>)'
+      seasonNum + '\\s*(?:&#215;|×|x)\\s*0?' + episodeNum + '[\\s\\S]{0,8000}?(?=<br\\s*/?>|</div>)',
+      'S0?' + seasonNum + 'E' + ep2 + '[\\s\\S]{0,8000}?(?=<br\\s*/?>|</div>)'
     ];
     var block = null;
     for (var pi = 0; pi < patterns.length; pi++) {
@@ -1588,11 +1549,9 @@ function extractLinksFromPage(domain, pageUrl, seasonNum, episodeNum, cb) {
     while ((cm = clickaRe.exec(block)) !== null) {
       if (!seen[cm[0]]) { seen[cm[0]] = true; clickaTasks.push({ url: cm[0], kind: cm[1] }); }
     }
-    // Fallback: search entire HTML for clicka.cc URLs
-    if (clickaTasks.length === 0) {
-      while ((cm = clickaRe.exec(html)) !== null) {
-        if (!seen[cm[0]]) { seen[cm[0]] = true; clickaTasks.push({ url: cm[0], kind: cm[1] }); }
-      }
+    // Also scan entire HTML for any clicka.cc URLs the block might have missed
+    while ((cm = clickaRe.exec(html)) !== null) {
+      if (!seen[cm[0]]) { seen[cm[0]] = true; clickaTasks.push({ url: cm[0], kind: cm[1] }); }
     }
 
     // Also extract direct MixDrop URLs (from entire page)
@@ -1633,7 +1592,6 @@ function extractLinksFromPage(domain, pageUrl, seasonNum, episodeNum, cb) {
     var timer = setTimeout(function () {
       if (!resolved) {
         resolved = true;
-        _dbg('[ES_DBG] TIMEOUT 12s reached, returning ' + streams.length + ' streams');
         cb(streams.length > 0 ? streams : null);
       }
     }, 12000);
@@ -1653,21 +1611,14 @@ function extractLinksFromPage(domain, pageUrl, seasonNum, episodeNum, cb) {
           if (streamObj && streamObj.url && !seen[streamObj.url]) {
             seen[streamObj.url] = true;
             streams.push(streamObj);
-            _dbg('[ES_DBG] streamObj ADDED url=' + (streamObj.url||'').substring(0,120) + ' title=' + (streamObj.title||'') + ' total=' + streams.length);
-          } else {
-            _dbg('[ES_DBG] streamObj SKIPPED: ' + (streamObj ? 'exists=' + !!seen[streamObj.url] : 'null/undefined'));
           }
         })
-        .catch(function (err) {
-          console.log('[ES] clicka resolve failed/timeout: ' + task.url + ' - ' + (err.message || err));
-        })
+        .catch(function () {})
         .then(function () {
           pending--;
-          _dbg('[ES_DBG] pending-- now=' + pending + ' resolved=' + resolved + ' streams=' + streams.length);
           if (pending === 0 && !resolved) {
             clearTimeout(timer);
             resolved = true;
-            _dbg('[ES_DBG] ALL DONE, cb(' + streams.length + ' streams)');
             cb(streams.length > 0 ? streams : null);
           }
         });
