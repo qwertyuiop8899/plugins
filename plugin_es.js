@@ -1151,7 +1151,8 @@ function _followRedirector(url, referer) {
 // =========================================================================
 function resolveClickacc(startUrl, kind) {
   var current = startUrl;
-  var referer = 'https://eurostreamings.forum/';
+  var ES_DOMAIN = 'https://eurostreamings.makeup';
+  var referer = ES_DOMAIN + '/';
   function loop(hop) {
     if (hop >= 6) return Promise.reject(new Error('Clickacc: max hops reached'));
     // Check if current is a redirector URL (clicka.cc/adelta|tva|amix)
@@ -1287,14 +1288,29 @@ function _tmdbSeriesName(id) {
 // =========================================================================
 function getStreams(id, type, season, episode) {
   return new Promise(function (resolve, reject) {
-    var tmdbId = String(id || '').replace(/^tmdb:/, '');
-    var imdbId = (typeof __imdb_id !== 'undefined' ? __imdb_id : tmdbId);
+    var rawId = String(id || '').replace(/^tmdb:/, '');
     var mediaType = String(type || 'movie').toLowerCase();
 
     if (mediaType !== 'series' && mediaType !== 'tv') return resolve([]);
 
     var seasonNum = Number(season) || 1;
     var episodeNum = Number(episode) || 1;
+
+    // Determine best IMDb ID and TMDB ID available.
+    // Nuvio server sets sandbox.__imdb_id = original IMDb/TMDB id.
+    // getStreams(id) receives the TMDB numeric id after Cinemeta translation.
+    var sandboxImdb = (typeof __imdb_id !== 'undefined' && __imdb_id) ? String(__imdb_id) : null;
+    var isImdb = function(s) { return /^tt\d+$/.test(String(s || '')); };
+    var isNumeric = function(s) { return /^\d+$/.test(String(s || '')); };
+
+    var imdbCandidate = null; // tt... for Cinemeta
+    var tmdbCandidate = null; // numeric for TMDB API
+
+    if (isImdb(rawId))    { imdbCandidate = rawId; }
+    else if (isNumeric(rawId)) { tmdbCandidate = rawId; }
+
+    if (sandboxImdb && isImdb(sandboxImdb))   { imdbCandidate = sandboxImdb; }
+    else if (sandboxImdb && isNumeric(sandboxImdb) && !tmdbCandidate) { tmdbCandidate = sandboxImdb; }
 
     function doSearch(title) {
       getEsDomain(function (domain) {
@@ -1308,14 +1324,32 @@ function getStreams(id, type, season, episode) {
       });
     }
 
-    getCinemetaMeta('series', imdbId, function (err, meta) {
-      if (meta && meta.name) return doSearch(meta.name);
-      // Cinemeta failed — try TMDB API with the numeric part
-      _tmdbSeriesName(imdbId).then(function(tmdbTitle) {
-        if (tmdbTitle) return doSearch(tmdbTitle);
+    function tryTmdbDirect() {
+      if (tmdbCandidate) {
+        _tmdbSeriesName(tmdbCandidate).then(function(title) {
+          if (title) return doSearch(title);
+          resolve([]);
+        }).catch(function() { resolve([]); });
+      } else {
         resolve([]);
+      }
+    }
+
+    if (imdbCandidate) {
+      // 1st: Cinemeta with IMDb
+      getCinemetaMeta('series', imdbCandidate, function(err, meta) {
+        if (meta && meta.name) return doSearch(meta.name);
+        // 2nd: TMDB external lookup by IMDb ID
+        _tmdbSeriesName(imdbCandidate).then(function(title) {
+          if (title) return doSearch(title);
+          // 3rd: TMDB direct with numeric ID
+          tryTmdbDirect();
+        }).catch(function() { tryTmdbDirect(); });
       });
-    });
+    } else {
+      // No IMDb ID — go straight to TMDB numeric
+      tryTmdbDirect();
+    }
   });
 }
 
@@ -1332,7 +1366,7 @@ function esFetch(url, cb) {
     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/146.0.0.0 Safari/537.36',
     'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
     'Accept-Language': 'it-IT,it;q=0.9,en-US;q=0.8,en;q=0.7',
-    'Referer': 'https://eurostreamings.forum/'
+    'Referer': 'https://eurostreamings.makeup/'
   };
   fetch(url, { headers: headers, timeout: 15000 })
     .then(function (r) { return r.text(); })
@@ -1365,9 +1399,9 @@ function getEsDomain(cb) {
           }
         }
       }
-      cb('https://eurostreamings.forum');
+      cb('https://eurostreamings.makeup');
     })
-    .catch(function () { cb('https://eurostreamings.forum'); });
+    .catch(function () { cb('https://eurostreamings.makeup'); });
 }
 
 function searchSeries(domain, title, seasonNum, cb) {
