@@ -6,7 +6,7 @@ var Buffer = typeof Buffer !== 'undefined' ? Buffer : require('buffer').Buffer;
 var TMDB_API_KEY = '68e094699525b18a70bab2f86b1fa706';
 
 function _vdTmdbToImdb(tmdbId, type) {
-  return new Promise(function(resolve) {
+  return new Promise(function (resolve) {
     if (/^tt\d+$/.test(tmdbId)) {
       return resolve(tmdbId);
     }
@@ -14,10 +14,10 @@ function _vdTmdbToImdb(tmdbId, type) {
     var endpoint = type === 'series' || type === 'tv'
       ? 'https://api.themoviedb.org/3/tv/' + tmdbId + '/external_ids?api_key=' + TMDB_API_KEY
       : 'https://api.themoviedb.org/3/movie/' + tmdbId + '?api_key=' + TMDB_API_KEY;
-      
+
     fetch(endpoint, { timeout: 10000 })
-      .then(function(r) { return r.ok ? r.json() : null; })
-      .then(function(data) {
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (data) {
         if (data && data.imdb_id) {
           resolve(data.imdb_id);
         } else if (data && data.external_ids && data.external_ids.imdb_id) {
@@ -26,7 +26,7 @@ function _vdTmdbToImdb(tmdbId, type) {
           resolve(null);
         }
       })
-      .catch(function() { resolve(null); });
+      .catch(function () { resolve(null); });
   });
 }
 
@@ -38,18 +38,18 @@ function getStreams(id, type, season, episode) {
 
     var globalImdbId = (typeof __imdb_id !== 'undefined' && /^tt\d+$/.test(__imdb_id)) ? __imdb_id : null;
     var getImdbIdPromise;
-    
+
     if (globalImdbId) {
       getImdbIdPromise = Promise.resolve(globalImdbId);
     } else {
       getImdbIdPromise = _vdTmdbToImdb(cleanId, isSeries ? 'series' : 'movie');
     }
 
-    getImdbIdPromise.then(function(imdbId) {
+    getImdbIdPromise.then(function (imdbId) {
       if (!imdbId) {
         imdbId = cleanId;
       }
-      
+
       var vdDomain = 'https://v.vidxgo.co';
       var pageUrl;
       if (isSeries) {
@@ -83,6 +83,7 @@ function getStreams(id, type, season, episode) {
           name: 'Vidxgo',
           title: 'Vidxgo' + (isSeries ? (' S' + (Number(season) || 1) + 'E' + (Number(episode) || 1)) : ''),
           url: streamUrl,
+          quality: "1080",
           behaviorHints: {
             notWebReady: true,
             bingeGroup: 'vidxgo-' + imdbId
@@ -149,7 +150,7 @@ function decodeXorBlocks(html) {
     try {
       var decoded = xorDecode(key, encoded);
       if (decoded) results.push(decoded);
-    } catch (e) {}
+    } catch (e) { }
   }
 
   // Pattern 2: var XXX='KEY',d=atob('ENCODED')
@@ -161,7 +162,7 @@ function decodeXorBlocks(html) {
       try {
         var decoded2 = xorDecode(key2, encoded2);
         if (decoded2) results.push(decoded2);
-      } catch (e) {}
+      } catch (e) { }
     }
   }
 
@@ -176,13 +177,13 @@ function tryFallbackDecode(html) {
       var data = JSON.parse(jsonMatch[1]);
       return JSON.stringify(data);
     }
-  } catch (e) {}
+  } catch (e) { }
 
   // Look for direct m3u8 URLs in page
   try {
     var m3u8Match = html.match(/https?:\/\/[^"'\s]*master\.m3u8[^"'\s]*/);
     if (m3u8Match) return m3u8Match[0];
-  } catch (e) {}
+  } catch (e) { }
 
   return null;
 }
