@@ -1455,7 +1455,7 @@ function esFetch(url, cb) {
 
 function getEsDomain(cb) {
   // Try cabod domain list, fallback to hardcoded
-  fetch('https://raw.githubusercontent.com/cabod/domains/refs/heads/main/domains.json', { timeout: 10000 })
+  fetch('https://github.com/qwertyuiop8899/streamvix/raw/refs/heads/main/config/domains.json', { timeout: 10000 })
     .then(function (r) { return r.text(); })
     .then(function (data) {
       try {
