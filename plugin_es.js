@@ -1488,17 +1488,77 @@ function searchSeries(domain, title, seasonNum, cb) {
   esFetch(domain + '/?s=' + encodeURIComponent(query), function (err, html) {
     if (err || !html) return cb(null);
 
+    // Helper per normalizzare i titoli (accenti, minuscole, alfanumerici)
+    function normalizeTitle(t) {
+      if (!t) return '';
+      return t
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, ' ')
+        .trim()
+        .replace(/\s+/g, ' ');
+    }
+
+    // Pulisce il titolo del post eliminando l'anno e diciture superflue
+    function cleanPostTitle(title) {
+      if (!title) return '';
+      return title
+        .replace(/\(\d{4}\)/g, '')          // Rimuove l'anno es. (2022)
+        .replace(/-\s*stagione\s*\d+/gi, '') // Rimuove il suffisso stagione
+        .replace(/streaming/gi, '')
+        .replace(/serie\s*tv/gi, '')
+        .trim();
+    }
+
+    // Assegna un punteggio di accuratezza da 0 a 100
+    function scoreTitleMatch(target, candidate) {
+      var normTarget = normalizeTitle(target);
+      var normCandidate = normalizeTitle(cleanPostTitle(candidate));
+      
+      // Match perfetto
+      if (normTarget === normCandidate) return 100;
+      
+      var targetTokens = normTarget.split(' ').filter(Boolean);
+      var candidateTokens = normCandidate.split(' ').filter(Boolean);
+      
+      if (targetTokens.length === 0 || candidateTokens.length === 0) return 0;
+      
+      // Conta quanti token del titolo cercato sono presenti nel candidato
+      var matchCount = 0;
+      targetTokens.forEach(function(tok) {
+        if (candidateTokens.indexOf(tok) >= 0) matchCount++;
+      });
+      
+      // Tutti i token cercati devono essere presenti nel titolo candidato
+      var ratio = matchCount / targetTokens.length;
+      if (ratio < 1.0) return 0;
+      
+      // Se il titolo cercato è una sola parola (es. "from"), sii molto rigido:
+      // il candidato non deve contenere altre parole significative (es. "agent", "above")
+      if (targetTokens.length === 1) {
+        var extraWords = candidateTokens.filter(function(w) { return w !== targetTokens[0]; });
+        var cleanExtra = extraWords.filter(function(w) {
+          return ['sub', 'ita', 'season', 'stagione', 'tv', 'show', 'hd'].indexOf(w) === -1;
+        });
+        if (cleanExtra.length > 0) return 10; // Punteggio bassissimo (scarto)
+      }
+      
+      var lenDiff = Math.abs(candidateTokens.length - targetTokens.length);
+      return 90 - lenDiff;
+    }
+
     var entryPattern = /<li[^>]+id=["']post-(\d+)["'][^>]*class=["'][^"]*post[^"]*["'][^>]*>[\s\S]*?<h\d[^>]*>[\s\S]*?<a[^>]+href=["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>[\s\S]*?<\/h\d>[\s\S]*?<\/li>/gi;
     var match;
     var candidates = [];
     var seen = {};
-    var lowerTitle = title.toLowerCase();
     while ((match = entryPattern.exec(html)) !== null) {
       var href = match[2];
-      var linkText = (match[3] || '').replace(/<[^>]+>/g, '').toLowerCase();
-      if (!seen[href] && linkText.indexOf(lowerTitle) >= 0) {
+      var linkText = (match[3] || '').replace(/<[^>]+>/g, '').trim();
+      var score = scoreTitleMatch(title, linkText);
+      if (!seen[href] && score > 0) {
         seen[href] = true;
-        candidates.push(href);
+        candidates.push({ href: href, score: score });
       }
     }
 
@@ -1508,15 +1568,23 @@ function searchSeries(domain, title, seasonNum, cb) {
         allLinks.forEach(function (a) {
           var m = a.match(/href=["']([^"']+)["']/);
           var t = a.match(/title=["']([^"']+)["']/i);
-          if (m && t && !seen[m[1]] && t[1].toLowerCase().indexOf(lowerTitle) >= 0) {
-            seen[m[1]] = true;
-            candidates.push(m[1]);
+          if (m && t && !seen[m[1]]) {
+            var score = scoreTitleMatch(title, t[1]);
+            if (score > 0) {
+              seen[m[1]] = true;
+              candidates.push({ href: m[1], score: score });
+            }
           }
         });
       }
     }
 
-    cb(candidates.length > 0 ? candidates[0] : null);
+    // Ordina i candidati per punteggio decrescente
+    candidates.sort(function(a, b) { return b.score - a.score; });
+    
+    // Sceglie il migliore solo se supera la soglia di confidenza (es. 50)
+    var best = (candidates.length > 0 && candidates[0].score >= 50) ? candidates[0].href : null;
+    cb(best);
   });
 }
 
@@ -1578,7 +1646,7 @@ function extractLinksFromPage(domain, pageUrl, seasonNum, episodeNum, cb) {
             streams.push(streamObj);
           }
         })
-        .catch(function () {})
+        .catch(function () { })
         .then(function () {
           pending--;
           if (pending === 0 && !resolved) {
