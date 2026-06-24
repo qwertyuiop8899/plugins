@@ -77,11 +77,15 @@ function getCinemetaMeta(type, imdbId, cb) {
 var USER_AGENT = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/146.0.0.0 Safari/537.36';
 
 function cb01Fetch(url, cb) {
+  var referer = 'https://cb01official.uno/';
+  var match = url.match(/^(https?:\/\/[^\/]+)/);
+  if (match) referer = match[1] + '/';
+
   var headers = {
     'User-Agent': USER_AGENT,
     'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
     'Accept-Language': 'it-IT,it;q=0.9,en-US;q=0.8,en;q=0.7',
-    'Referer': 'https://cb01uno.sbs/'
+    'Referer': referer
   };
   fetch(url, { headers: headers, timeout: 15000 })
     .then(function (r) { return r.text(); })
@@ -107,17 +111,10 @@ function searchCB01(title, year, mediaType, season, episode, cb) {
   var trySearch = function (idx) {
     if (idx >= searchTitles.length) return cb(null);
     var q = searchTitles[idx];
-    var searchUrl = 'https://cb01uno.sbs/' + searchPath + '?s=' + encodeURIComponent(q);
+    var searchUrl = 'https://cb01official.uno/' + searchPath + '?s=' + encodeURIComponent(q);
     cb01Fetch(searchUrl, function (err, html) {
       if (err || !html) {
-        cb01Fetch('https://cb01uno.mom/' + searchPath + '?s=' + encodeURIComponent(q), function (err2, html2) {
-          if (err2 || !html2) return trySearch(idx + 1);
-          findBestMatch(html2, q, year, function (pageUrl) {
-            if (!pageUrl) return trySearch(idx + 1);
-            cb(pageUrl);
-          });
-        });
-        return;
+        return trySearch(idx + 1);
       }
       findBestMatch(html, q, year, function (pageUrl) {
         if (!pageUrl) return trySearch(idx + 1);
