@@ -39,28 +39,64 @@ function _cbTmdbMeta(id, type) {
   });
 }
 
+var activeDomain = 'cb01official.uno';
+var isResolvingDomain = false;
+var resolveQueue = [];
+
+function resolveActiveDomain(cb) {
+  if (activeDomain !== 'cb01official.uno') {
+    return cb(activeDomain);
+  }
+  resolveQueue.push(cb);
+  if (isResolvingDomain) return;
+  isResolvingDomain = true;
+  
+  fetch('https://cb01official.uno/', { headers: { 'User-Agent': USER_AGENT }, timeout: 10000 })
+    .then(function (res) {
+      var finalUrl = res.url || 'https://cb01official.uno/';
+      var match = finalUrl.match(/https?:\/\/([a-zA-Z0-9.-]+)/);
+      if (match && match[1] && match[1] !== 'cb01official.uno') {
+        activeDomain = match[1];
+      } else {
+        activeDomain = 'cb01uno.lol';
+      }
+      isResolvingDomain = false;
+      var q = resolveQueue;
+      resolveQueue = [];
+      q.forEach(function (c) { c(activeDomain); });
+    })
+    .catch(function () {
+      activeDomain = 'cb01uno.lol';
+      isResolvingDomain = false;
+      var q = resolveQueue;
+      resolveQueue = [];
+      q.forEach(function (c) { c(activeDomain); });
+    });
+}
+
 function getStreams(id, type, season, episode) {
   return new Promise(function (resolve, reject) {
-    var tmdbId = String(id || '').replace(/^tmdb:/, '');
-    var imdbId = (typeof __imdb_id !== 'undefined' ? __imdb_id : tmdbId);
-    var mediaType = String(type || 'movie').toLowerCase();
-    var cinemetaType = mediaType === 'tv' ? 'series' : mediaType;
+    resolveActiveDomain(function (domain) {
+      var tmdbId = String(id || '').replace(/^tmdb:/, '');
+      var imdbId = (typeof __imdb_id !== 'undefined' ? __imdb_id : tmdbId);
+      var mediaType = String(type || 'movie').toLowerCase();
+      var cinemetaType = mediaType === 'tv' ? 'series' : mediaType;
 
-    function doSearch(title, year) {
-      searchCB01(title, year, mediaType, season, episode, function (pageUrl) {
-        if (!pageUrl) return resolve([]);
-        extractFromPage(pageUrl, season, episode, function (streams) {
-          resolve(streams || []);
+      function doSearch(title, year) {
+        searchCB01(title, year, mediaType, season, episode, function (pageUrl) {
+          if (!pageUrl) return resolve([]);
+          extractFromPage(pageUrl, season, episode, function (streams) {
+            resolve(streams || []);
+          });
         });
-      });
-    }
+      }
 
-    getCinemetaMeta(cinemetaType, imdbId, function (err, meta) {
-      if (meta && meta.name) return doSearch(meta.name, meta.releaseInfo || '');
-      // Cinemeta failed — try TMDB API
-      _cbTmdbMeta(imdbId, mediaType).then(function(tmdbMeta) {
-        if (tmdbMeta && tmdbMeta.name) return doSearch(tmdbMeta.name, tmdbMeta.releaseInfo || '');
-        resolve([]);
+      getCinemetaMeta(cinemetaType, imdbId, function (err, meta) {
+        if (meta && meta.name) return doSearch(meta.name, meta.releaseInfo || '');
+        _cbTmdbMeta(imdbId, mediaType).then(function(tmdbMeta) {
+          if (tmdbMeta && tmdbMeta.name) return doSearch(tmdbMeta.name, tmdbMeta.releaseInfo || '');
+          resolve([]);
+        });
       });
     });
   });
@@ -77,7 +113,7 @@ function getCinemetaMeta(type, imdbId, cb) {
 var USER_AGENT = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/146.0.0.0 Safari/537.36';
 
 function cb01Fetch(url, cb) {
-  var referer = 'https://cb01official.uno/';
+  var referer = 'https://' + activeDomain + '/';
   var match = url.match(/^(https?:\/\/[^\/]+)/);
   if (match) referer = match[1] + '/';
 
@@ -111,7 +147,7 @@ function searchCB01(title, year, mediaType, season, episode, cb) {
   var trySearch = function (idx) {
     if (idx >= searchTitles.length) return cb(null);
     var q = searchTitles[idx];
-    var searchUrl = 'https://cb01official.uno/' + searchPath + '?s=' + encodeURIComponent(q);
+    var searchUrl = 'https://' + activeDomain + '/' + searchPath + '?s=' + encodeURIComponent(q);
     cb01Fetch(searchUrl, function (err, html) {
       if (err || !html) {
         return trySearch(idx + 1);
