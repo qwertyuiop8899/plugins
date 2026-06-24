@@ -162,6 +162,10 @@ function searchCB01(title, year, mediaType, season, episode, cb) {
 }
 
 function findBestMatch(html, title, year, cb) {
+  console.log(`[DEBUG findBestMatch] Cerco: "${title}", anno: "${year}", html.length: ${html ? html.length : 0}`);
+  if (html) {
+    console.log(`[DEBUG findBestMatch] Primi 500 caratteri dell'HTML:\n${html.substring(0, 500)}`);
+  }
   var lowerTitle = title.toLowerCase().replace(/[^a-z0-9\s]/g, '').trim();
   var titleTokens = lowerTitle.split(/\s+/).filter(Boolean);
   var candidates = [];
@@ -176,30 +180,35 @@ function findBestMatch(html, title, year, cb) {
       if (linkText.indexOf(titleTokens[i]) >= 0) score += 3;
     }
     if (year && linkText.indexOf(String(year)) >= 0) score += 5;
+    console.log(`[DEBUG findBestMatch] Card Trovata: "${linkText}" -> score: ${score}, href: ${href}`);
     if (score > 0) {
       candidates.push({ url: href, score: score });
     }
   }
 
   if (candidates.length === 0) {
-    var allLinks = html.match(/<a[^>]+href=["'](https?:\/\/cb01uno[^"']+\/\d+\/[^"']+)["'][^>]*>/gi);
-    if (allLinks) {
-      allLinks.forEach(function (a) {
-        var m = a.match(/href=["']([^"']+)["']/);
-        var aText = a.toLowerCase();
-        var score = 0;
-        for (var i = 0; i < titleTokens.length; i++) {
-          if (aText.indexOf(titleTokens[i]) >= 0) score += 3;
-        }
-        if (year && aText.indexOf(String(year)) >= 0) score += 5;
-        if (score > 0) {
-          candidates.push({ url: m[1], score: score });
-        }
-      });
+    console.log("[DEBUG findBestMatch] Nessun candidato card-content, provo fallback vecchi articoli...");
+    var entryPattern = /<article[^>]*>[\s\S]*?<a[^>]+href=["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>[\s\S]*?<\/article>/gi;
+    var match;
+    while ((match = entryPattern.exec(html)) !== null) {
+      var href = match[1];
+      var linkText = (match[2] || '').replace(/<[^>]+>/g, '').toLowerCase();
+      var text = (linkText + ' ' + match[0].toLowerCase());
+      
+      var score = 0;
+      for (var i = 0; i < titleTokens.length; i++) {
+        if (text.indexOf(titleTokens[i]) >= 0) score += 3;
+      }
+      if (year && text.indexOf(String(year)) >= 0) score += 5;
+      if (score > 0) {
+        candidates.push({ url: href, score: score });
+      }
     }
   }
 
+  console.log("[DEBUG findBestMatch] Candidati finali:", candidates);
   if (candidates.length === 0) return cb(null);
+
   candidates.sort(function (a, b) { return b.score - a.score; });
   cb(candidates[0].url);
 }
