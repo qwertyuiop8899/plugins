@@ -3,6 +3,19 @@
   "version": "1.0.1",
   "scrapers": [
     {
+      "id": "toastflix-vidxgo",
+      "name": "Vidxgo",
+      "version": "1.0.0",
+      "description": "Film e Serie TV da Vidxgo",
+      "resources": ["stream"],
+      "contentLanguage": ["it"],
+      "formats": ["m3u8"],
+      "idPrefixes": ["tmdb:", "tt"],
+      "filename": "plugin_vd.js",
+      "supportedTypes": ["movie", "series", "tv"],
+      "enabled": true
+    },
+    {
       "id": "toastflix-cb01",
       "name": "CB01",
       "version": "1.0.0",
@@ -26,19 +39,6 @@
       "idPrefixes": ["tmdb:", "tt"],
       "filename": "plugin_es.js",
       "supportedTypes": ["series", "tv"],
-      "enabled": true
-    },
-    {
-      "id": "toastflix-vidxgo",
-      "name": "Vidxgo",
-      "version": "1.0.0",
-      "description": "Film e Serie TV da Vidxgo",
-      "resources": ["stream"],
-      "contentLanguage": ["it"],
-      "formats": ["m3u8"],
-      "idPrefixes": ["tmdb:", "tt"],
-      "filename": "plugin_vd.js",
-      "supportedTypes": ["movie", "series", "tv"],
       "enabled": true
     }
   ]
