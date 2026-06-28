@@ -84,6 +84,13 @@ function nativeFetch(urlStr, options) {
             headers: mockHeaders,
             text: function () {
               return Promise.resolve(bodyText);
+            },
+            json: function () {
+              try {
+                return Promise.resolve(JSON.parse(bodyText));
+              } catch (e) {
+                return Promise.reject(e);
+              }
             }
           };
           resolve(responseObj);
