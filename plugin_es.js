@@ -75,6 +75,10 @@ function _buildProxyUrl(rawUrl, referer, ua, origin) {
     if (origin) {
       opts += '&h=' + encodeURIComponent('Origin:' + origin);
     }
+    // If the resource is an MP4 file, force content-type to video/mp4 to override incorrect upstream content-types (e.g. text/plain on Deltabit)
+    if (rawUrl.toLowerCase().indexOf('.mp4') >= 0) {
+      opts += '&r=' + encodeURIComponent('content-type:video/mp4');
+    }
     return '/proxy/' + opts + pathnameAndSearch;
   } catch (e) { return rawUrl; }
 }
