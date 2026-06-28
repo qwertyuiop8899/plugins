@@ -3,6 +3,114 @@
  * with clicka.cc captcha OCR resolution (no npm dependencies).
  */
 // =========================================================================
+// CUSTOM NATIVE FETCH WRAPPER (bypasses Stremio sandbox fetch redirect bugs)
+// =========================================================================
+function nativeFetch(urlStr, options) {
+  return new Promise(function (resolve, reject) {
+    var http = require('http');
+    var https = require('https');
+    var urlModule = require('url');
+
+    function doRequest(curUrl, redirectCount) {
+      if (redirectCount > 5) {
+        return reject(new Error('Too many redirects'));
+      }
+
+      var parsedUrl = urlModule.parse(curUrl);
+      var isHttps = parsedUrl.protocol === 'https:';
+      var client = isHttps ? https : http;
+
+      var opt = options || {};
+      var headers = {};
+      if (opt.headers) {
+        for (var k in opt.headers) {
+          headers[k] = opt.headers[k];
+        }
+      }
+
+      var reqOpts = {
+        method: (opt.method || 'GET').toUpperCase(),
+        hostname: parsedUrl.hostname,
+        port: parsedUrl.port || (isHttps ? 443 : 80),
+        path: parsedUrl.path,
+        headers: headers,
+        rejectUnauthorized: false
+      };
+
+      var req = client.request(reqOpts, function (res) {
+        var isRedirect = res.statusCode >= 300 && res.statusCode < 400 && res.statusCode !== 304;
+        if (isRedirect && opt.redirect !== 'manual') {
+          var loc = res.headers['location'];
+          if (loc) {
+            var nextUrl = loc.indexOf('://') >= 0 ? loc : urlModule.resolve(curUrl, loc);
+            return doRequest(nextUrl, redirectCount + 1);
+          }
+        }
+
+        var chunks = [];
+        res.on('data', function (chunk) {
+          chunks.push(chunk);
+        });
+        res.on('end', function () {
+          var bodyBuffer = Buffer.concat(chunks);
+          var bodyText = bodyBuffer.toString('utf8');
+
+          var headersMap = {};
+          for (var hk in res.headers) {
+            headersMap[hk.toLowerCase()] = res.headers[hk];
+          }
+
+          var mockHeaders = {
+            get: function (name) {
+              var val = headersMap[name.toLowerCase()];
+              if (Array.isArray(val)) return val.join(', ');
+              return val || null;
+            },
+            getSetCookie: function () {
+              var sc = res.headers['set-cookie'] || res.headers['Set-Cookie'];
+              if (!sc) return [];
+              return Array.isArray(sc) ? sc : [sc];
+            },
+            forEach: function (callback) {
+              for (var name in headersMap) {
+                callback(headersMap[name], name);
+              }
+            }
+          };
+
+          var responseObj = {
+            status: res.statusCode,
+            ok: res.statusCode >= 200 && res.statusCode < 300,
+            headers: mockHeaders,
+            text: function () {
+              return Promise.resolve(bodyText);
+            }
+          };
+          resolve(responseObj);
+        });
+      });
+
+      req.on('error', function (err) {
+        reject(err);
+      });
+
+      var timeout = opt.timeout || 20000;
+      req.setTimeout(timeout, function () {
+        req.destroy(new Error('Request timeout ' + timeout + 'ms'));
+      });
+
+      if (opt.body) {
+        req.write(opt.body);
+      }
+      req.end();
+    }
+
+    doRequest(urlStr, 0);
+  });
+}
+var fetch = nativeFetch;
+
+// =========================================================================
 // CONFIGURATION
 // =========================================================================
 var ES_UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36';
