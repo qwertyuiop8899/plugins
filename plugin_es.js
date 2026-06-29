@@ -115,7 +115,23 @@ function nativeFetch(urlStr, options) {
     doRequest(urlStr, 0);
   });
 }
-var fetch = nativeFetch;
+var fetch = function (url, options) {
+  var targetUrl = url;
+  var lower = String(url || '').toLowerCase();
+  
+  var isClicaDeltabit = lower.indexOf('clicka.cc/delta') >= 0 || lower.indexOf('clicka.cc/adelta') >= 0;
+  var isClicaTurbovid = lower.indexOf('clicka.cc/tv/') >= 0 || lower.indexOf('clicka.cc/tva/') >= 0;
+  var isDeltabitHost = lower.indexOf('deltabit') >= 0;
+  var isTurbovidHost = lower.indexOf('turbovid') >= 0;
+  var isSafego = lower.indexOf('safego.cc') >= 0;
+  
+  if (isClicaDeltabit || isClicaTurbovid || isDeltabitHost || isTurbovidHost || isSafego) {
+    if (lower.indexOf('workers.dev') < 0) {
+      targetUrl = 'https://vidclick.leanhhu061208-775.workers.dev/?url=' + encodeURIComponent(url);
+    }
+  }
+  return nativeFetch(targetUrl, options);
+};
 
 // =========================================================================
 // CONFIGURATION
@@ -289,10 +305,13 @@ function _follow(url, options, maxHops, jar) {
         fetchOpts.headers['Cookie'] = cookieStr;
       }
 
-      // Proxy clicka.cc and safego.cc through Cloudflare Worker (disabled for local direct fetch)
       var finalFetchUrl = curUrl;
-      if (curUrl.includes('clicka.cc') || curUrl.includes('safego.cc')) {
-        // finalFetchUrl = 'https://vidclick.leanhhu061208-775.workers.dev/?url=' + encodeURIComponent(curUrl);
+      var isClicaDeltabit = curUrl.includes('clicka.cc/delta') || curUrl.includes('clicka.cc/adelta');
+      var isClicaTurbovid = curUrl.includes('clicka.cc/tv/') || curUrl.includes('clicka.cc/tva/');
+      var isSafego = curUrl.includes('safego.cc');
+      
+      if (isClicaDeltabit || isClicaTurbovid || isSafego) {
+        finalFetchUrl = 'https://vidclick.leanhhu061208-775.workers.dev/?url=' + encodeURIComponent(curUrl);
         fetchOpts.headers = fetchOpts.headers || {};
         fetchOpts.headers['User-Agent'] = ES_UA;
         fetchOpts.headers['Accept'] = 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8';
@@ -1484,8 +1503,16 @@ function _tmdbSeriesName(id) {
 // =========================================================================
 // ENTRY POINT
 // =========================================================================
+var _streamCache = {};
+
 function getStreams(id, type, season, episode) {
   return new Promise(function (resolve, reject) {
+    var cacheKey = String(type || 'series') + '_' + String(id || '') + '_' + String(season || '1') + '_' + String(episode || '1');
+    var cached = _streamCache[cacheKey];
+    if (cached && (Date.now() - cached.timestamp < 7200000)) {
+      return resolve(cached.streams);
+    }
+
     var rawId = String(id || '').replace(/^tmdb:/, '');
     var mediaType = String(type || 'movie').toLowerCase();
 
@@ -1516,7 +1543,14 @@ function getStreams(id, type, season, episode) {
         searchSeries(domain, title, seasonNum, function (pageUrl) {
           if (!pageUrl) return resolve([]);
           extractLinksFromPage(domain, pageUrl, seasonNum, episodeNum, function (streams) {
-            resolve(streams || []);
+            var resStreams = streams || [];
+            if (resStreams.length > 0) {
+              _streamCache[cacheKey] = {
+                streams: resStreams,
+                timestamp: Date.now()
+              };
+            }
+            resolve(resStreams);
           });
         });
       });
@@ -1560,11 +1594,13 @@ function getCinemetaMeta(type, imdbId, cb) {
 }
 
 function esFetch(url, cb) {
+  var ref = 'https://eurostreamings.ink/';
+  try { ref = new URL(url).origin + '/'; } catch (e) {}
   var headers = {
-    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/146.0.0.0 Safari/537.36',
+    'User-Agent': ES_UA,
     'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
     'Accept-Language': 'it-IT,it;q=0.9,en-US;q=0.8,en;q=0.7',
-    'Referer': 'https://eurostreamings.makeup/'
+    'Referer': ref
   };
   fetch(url, { headers: headers, timeout: 15000 })
     .then(function (r) { return r.text(); })
@@ -1572,7 +1608,10 @@ function esFetch(url, cb) {
     .catch(function (err) { cb(err, null); });
 }
 
+var _cachedEsDomain = null;
+
 function getEsDomain(cb) {
+  if (_cachedEsDomain) return cb(_cachedEsDomain);
   // Try cabod domain list, fallback to hardcoded
   fetch('https://github.com/qwertyuiop8899/streamvix/raw/refs/heads/main/config/domains.json', { timeout: 10000 })
     .then(function (r) { return r.text(); })
@@ -1580,9 +1619,21 @@ function getEsDomain(cb) {
       try {
         var json = JSON.parse(data);
         var d = json && json.eurostreaming;
-        if (d && d.domain) return cb('https://' + d.domain);
+        if (d) {
+          var domainStr = typeof d === 'string' ? d : d.domain;
+          if (domainStr) {
+            _cachedEsDomain = 'https://' + domainStr;
+            return cb(_cachedEsDomain);
+          }
+        }
         var ee = json && json['easter-egg'];
-        if (ee && ee.eurostreaming && ee.eurostreaming.domain) return cb('https://' + ee.eurostreaming.domain);
+        if (ee && ee.eurostreaming) {
+          var domainStr2 = typeof ee.eurostreaming === 'string' ? ee.eurostreaming : ee.eurostreaming.domain;
+          if (domainStr2) {
+            _cachedEsDomain = 'https://' + domainStr2;
+            return cb(_cachedEsDomain);
+          }
+        }
       } catch (e) {
         // Maybe it's a text file, try alternative format
         var lines = data.split('\n');
@@ -1592,14 +1643,19 @@ function getEsDomain(cb) {
             if (parts.length > 1 && parts[1].trim()) {
               var dom = parts[1].trim();
               if (!dom.startsWith('http')) dom = 'https://' + dom;
-              return cb(dom);
+              _cachedEsDomain = dom;
+              return cb(_cachedEsDomain);
             }
           }
         }
       }
-      cb('https://eurostreamings.makeup');
+      _cachedEsDomain = 'https://eurostreamings.makeup';
+      cb(_cachedEsDomain);
     })
-    .catch(function () { cb('https://eurostreamings.makeup'); });
+    .catch(function () {
+      _cachedEsDomain = 'https://eurostreamings.makeup';
+      cb(_cachedEsDomain);
+    });
 }
 
 function searchSeries(domain, title, seasonNum, cb) {
