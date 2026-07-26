@@ -111,13 +111,13 @@ function fetchVidxgoPage(url, cb) {
     'Sec-CH-UA-Model': '""',
     'Sec-CH-UA-Platform-Version': '"15.0.0"',
     'Sec-CH-UA-Full-Version-List': '"Chromium";v="137.0.7151.104", "Google Chrome";v="137.0.7151.104", "Not/A)Brand";v="24.0.0.0"',
-    'Referer': 'https://altadefinizione.you/',
+    'Referer': 'https://v.vidxgo.co/',
     'Sec-GPC': '1',
     'Connection': 'keep-alive',
     'Upgrade-Insecure-Requests': '1',
     'Sec-Fetch-Dest': 'iframe',
     'Sec-Fetch-Mode': 'navigate',
-    'Sec-Fetch-Site': 'cross-site'
+    'Sec-Fetch-Site': 'same-origin'
   };
   fetch(url, { headers: headers, timeout: 20000 })
     .then(function (r) { return r.text(); })
