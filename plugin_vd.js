@@ -4,6 +4,18 @@
 var Buffer = typeof Buffer !== 'undefined' ? Buffer : require('buffer').Buffer;
 
 var TMDB_API_KEY = '68e094699525b18a70bab2f86b1fa706';
+var VD_DOMAIN = 'https://v.vidxgo.co';
+
+var VD_M3U8_HEADERS = {
+  'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Safari/537.36',
+  'Accept': '*/*',
+  'Accept-Language': 'en-US,en;q=0.9',
+  'Referer': VD_DOMAIN + '/',
+  'Origin': VD_DOMAIN,
+  'Sec-Fetch-Dest': 'empty',
+  'Sec-Fetch-Mode': 'cors',
+  'Sec-Fetch-Site': 'cross-site'
+};
 
 function _vdTmdbToImdb(tmdbId, type) {
   return new Promise(function (resolve) {
@@ -50,14 +62,13 @@ function getStreams(id, type, season, episode) {
         imdbId = cleanId;
       }
 
-      var vdDomain = 'https://v.vidxgo.co';
       var pageUrl;
       if (isSeries) {
         var seasonNum = Number(season) || 1;
         var episodeNum = Number(episode) || 1;
-        pageUrl = vdDomain + '/' + imdbId + '/' + seasonNum + '/' + episodeNum;
+        pageUrl = VD_DOMAIN + '/' + imdbId + '/' + seasonNum + '/' + episodeNum;
       } else {
-        pageUrl = vdDomain + '/' + imdbId;
+        pageUrl = VD_DOMAIN + '/' + imdbId;
       }
 
       fetchVidxgoPage(pageUrl, function (err, html) {
@@ -77,24 +88,44 @@ function getStreams(id, type, season, episode) {
         }
 
         var subtitles = extractSubtitles(decoded);
-        var streamUrl = buildProxyUrl(masterUrl);
 
-        var stream = {
-          name: 'Vidxgo',
-          title: 'Vidxgo' + (isSeries ? (' S' + (Number(season) || 1) + 'E' + (Number(episode) || 1)) : ''),
-          url: streamUrl,
-          quality: "1080",
-          behaviorHints: {
-            notWebReady: true,
-            bingeGroup: 'vidxgo-' + imdbId
+        resolveVidxgoMasterUrl(masterUrl).then(function (resolvedMasterUrl) {
+          var streamUrl = buildProxyUrl(resolvedMasterUrl || masterUrl);
+
+          var stream = {
+            name: 'Vidxgo',
+            title: 'Vidxgo' + (isSeries ? (' S' + (Number(season) || 1) + 'E' + (Number(episode) || 1)) : ''),
+            url: streamUrl,
+            quality: "1080",
+            behaviorHints: {
+              notWebReady: true,
+              bingeGroup: 'vidxgo-' + imdbId
+            }
+          };
+
+          if (subtitles && subtitles.length > 0) {
+            stream.subtitles = subtitles;
           }
-        };
 
-        if (subtitles && subtitles.length > 0) {
-          stream.subtitles = subtitles;
-        }
-
-        resolve([stream]);
+          resolve([stream]);
+        }).catch(function () {
+          // Preserve the previous output as a last-resort fallback. The clone
+          // endpoint may still be able to refresh the media ID server-side.
+          var fallbackStream = {
+            name: 'Vidxgo',
+            title: 'Vidxgo' + (isSeries ? (' S' + (Number(season) || 1) + 'E' + (Number(episode) || 1)) : ''),
+            url: buildProxyUrl(masterUrl),
+            quality: "1080",
+            behaviorHints: {
+              notWebReady: true,
+              bingeGroup: 'vidxgo-' + imdbId
+            }
+          };
+          if (subtitles && subtitles.length > 0) {
+            fallbackStream.subtitles = subtitles;
+          }
+          resolve([fallbackStream]);
+        });
       });
     });
   });
@@ -123,6 +154,78 @@ function fetchVidxgoPage(url, cb) {
     .then(function (r) { return r.text(); })
     .then(function (html) { cb(null, html); })
     .catch(function (err) { cb(err, null); });
+}
+
+function extractVidxgoMediaId(masterUrl) {
+  try {
+    var parsed = new URL(masterUrl);
+    var parts = parsed.pathname.split('/').filter(function (part) { return !!part; });
+    var hlsIndex = parts.indexOf('hls');
+    if (hlsIndex < 0) return null;
+
+    var mediaParts = [];
+    for (var i = hlsIndex + 1; i < parts.length; i++) {
+      if (parts[i].indexOf('master') !== -1) break;
+      mediaParts.push(parts[i]);
+    }
+    if (mediaParts[0] === 'tv') mediaParts.shift();
+    return mediaParts.length > 0 ? mediaParts.join('/') : null;
+  } catch (e) {
+    return null;
+  }
+}
+
+function probeVidxgoMaster(masterUrl) {
+  return fetch(masterUrl, {
+    headers: VD_M3U8_HEADERS,
+    timeout: 12000
+  }).then(function (response) {
+    if (!response.ok) return false;
+    return response.text().then(function (text) {
+      return String(text || '').trim().indexOf('#EXTM3U') === 0;
+    });
+  }).catch(function () {
+    // Includes TLS/certificate failures from obsolete Vidxgo proxy hosts.
+    return false;
+  });
+}
+
+function refreshVidxgoMaster(mediaId) {
+  if (!mediaId) return Promise.resolve(null);
+
+  var refreshUrl = VD_DOMAIN + '/t/' + mediaId;
+  var headers = Object.assign({}, VD_M3U8_HEADERS, {
+    'Referer': refreshUrl,
+    'Sec-Fetch-Site': 'same-origin'
+  });
+
+  return fetch(refreshUrl, {
+    headers: headers,
+    timeout: 12000
+  }).then(function (response) {
+    if (!response.ok) return null;
+    return response.json().then(function (data) {
+      if (!data || !data.url) return null;
+      return String(data.url).replace(/\\/g, '');
+    }).catch(function () {
+      return null;
+    });
+  }).catch(function () {
+    return null;
+  });
+}
+
+function resolveVidxgoMasterUrl(masterUrl) {
+  return probeVidxgoMaster(masterUrl).then(function (isValid) {
+    if (isValid) return masterUrl;
+
+    var mediaId = extractVidxgoMediaId(masterUrl);
+    if (!mediaId) return masterUrl;
+
+    return refreshVidxgoMaster(mediaId).then(function (freshUrl) {
+      return freshUrl || masterUrl;
+    });
+  });
 }
 
 function xorDecode(key, encoded) {
