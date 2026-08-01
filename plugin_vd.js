@@ -7,15 +7,40 @@ var TMDB_API_KEY = '68e094699525b18a70bab2f86b1fa706';
 var VD_DOMAIN = 'https://v.vidxgo.co';
 
 var VD_M3U8_HEADERS = {
-  'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Safari/537.36',
+  'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36',
   'Accept': '*/*',
-  'Accept-Language': 'en-US,en;q=0.9',
+  'Accept-Language': 'it-IT,it;q=0.9,en;q=0.8',
   'Referer': VD_DOMAIN + '/',
   'Origin': VD_DOMAIN,
   'Sec-Fetch-Dest': 'empty',
   'Sec-Fetch-Mode': 'cors',
   'Sec-Fetch-Site': 'cross-site'
 };
+
+var VD_PAGE_HEADERS = {
+  'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64; rv:150.0) Gecko/20100101 Firefox/150.0',
+  'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+  'Accept-Language': 'en-US,en;q=0.9',
+  'Referer': VD_DOMAIN + '/',
+  'Sec-GPC': '1',
+  'Connection': 'keep-alive',
+  'Upgrade-Insecure-Requests': '1',
+  'Sec-Fetch-Dest': 'iframe',
+  'Sec-Fetch-Mode': 'navigate',
+  'Sec-Fetch-Site': 'same-origin',
+  'DNT': '1'
+};
+
+function getVidxgoHostUrl(explicitHost) {
+  var value = explicitHost || '';
+  if (!value && typeof globalThis !== 'undefined') {
+    value = globalThis.HOST_URL || globalThis.host_url || '';
+  }
+  if (!value && typeof process !== 'undefined' && process.env) {
+    value = process.env.HOST_URL || '';
+  }
+  return String(value || 'https://toastflix.stremio-italia.eu').replace(/\/+$/, '');
+}
 
 function _vdTmdbToImdb(tmdbId, type) {
   return new Promise(function (resolve) {
@@ -42,8 +67,9 @@ function _vdTmdbToImdb(tmdbId, type) {
   });
 }
 
-function getStreams(id, type, season, episode) {
+function getStreams(id, type, season, episode, hostUrl) {
   return new Promise(function (resolve, reject) {
+    var cloneHost = getVidxgoHostUrl(hostUrl);
     var cleanId = String(id || '').replace(/^tmdb:/, '');
     var mediaType = String(type || 'movie').toLowerCase();
     var isSeries = mediaType === 'series' || mediaType === 'tv';
@@ -90,7 +116,7 @@ function getStreams(id, type, season, episode) {
         var subtitles = extractSubtitles(decoded);
 
         resolveVidxgoMasterUrl(masterUrl).then(function (resolvedMasterUrl) {
-          var streamUrl = buildProxyUrl(resolvedMasterUrl || masterUrl);
+          var streamUrl = buildProxyUrl(resolvedMasterUrl || masterUrl, cloneHost);
 
           var stream = {
             name: 'Vidxgo',
@@ -99,6 +125,7 @@ function getStreams(id, type, season, episode) {
             quality: "1080",
             behaviorHints: {
               notWebReady: true,
+              proxyHeaders: { request: VD_M3U8_HEADERS },
               bingeGroup: 'vidxgo-' + imdbId
             }
           };
@@ -114,10 +141,11 @@ function getStreams(id, type, season, episode) {
           var fallbackStream = {
             name: 'Vidxgo',
             title: 'Vidxgo' + (isSeries ? (' S' + (Number(season) || 1) + 'E' + (Number(episode) || 1)) : ''),
-            url: buildProxyUrl(masterUrl),
+            url: buildProxyUrl(masterUrl, cloneHost),
             quality: "1080",
             behaviorHints: {
               notWebReady: true,
+              proxyHeaders: { request: VD_M3U8_HEADERS },
               bingeGroup: 'vidxgo-' + imdbId
             }
           };
@@ -132,25 +160,7 @@ function getStreams(id, type, season, episode) {
 }
 
 function fetchVidxgoPage(url, cb) {
-  var headers = {
-    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Safari/537.36',
-    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-    'Accept-Language': 'en-US,en;q=0.9',
-    'Sec-CH-UA': '"Chromium";v="137", "Google Chrome";v="137", "Not/A)Brand";v="24"',
-    'Sec-CH-UA-Mobile': '?0',
-    'Sec-CH-UA-Platform': '"Windows"',
-    'Sec-CH-UA-Model': '""',
-    'Sec-CH-UA-Platform-Version': '"15.0.0"',
-    'Sec-CH-UA-Full-Version-List': '"Chromium";v="137.0.7151.104", "Google Chrome";v="137.0.7151.104", "Not/A)Brand";v="24.0.0.0"',
-    'Referer': 'https://v.vidxgo.co/',
-    'Sec-GPC': '1',
-    'Connection': 'keep-alive',
-    'Upgrade-Insecure-Requests': '1',
-    'Sec-Fetch-Dest': 'iframe',
-    'Sec-Fetch-Mode': 'navigate',
-    'Sec-Fetch-Site': 'same-origin'
-  };
-  fetch(url, { headers: headers, timeout: 20000 })
+  fetch(url, { headers: VD_PAGE_HEADERS, timeout: 20000 })
     .then(function (r) { return r.text(); })
     .then(function (html) { cb(null, html); })
     .catch(function (err) { cb(err, null); });
@@ -342,8 +352,8 @@ function encodeB64Url(str) {
     .replace(/=+$/, '');
 }
 
-function buildProxyUrl(masterUrl) {
-  return '/clone/manifest.m3u8?d=' + encodeB64Url(masterUrl);
+function buildProxyUrl(masterUrl, hostUrl) {
+  return getVidxgoHostUrl(hostUrl) + '/clone/manifest.m3u8?d=' + encodeB64Url(masterUrl);
 }
 
 module.exports = { getStreams: getStreams };
