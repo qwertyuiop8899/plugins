@@ -104,7 +104,10 @@ function getStreams(id, type, season, episode) {
         var subtitles = extractSubtitles(decoded);
 
         resolveVidxgoMasterUrl(masterUrl).then(function (resolvedMasterUrl) {
-          var streamUrl = resolvedMasterUrl || masterUrl;
+          // The modified client owns the relative /clone route. Keep the
+          // refreshed CDN URL inside the payload, but let that local proxy
+          // rewrite playlists and renew Vidxgo tokens during playback.
+          var streamUrl = buildProxyUrl(resolvedMasterUrl || masterUrl);
 
           var stream = {
             name: 'Vidxgo',
@@ -125,12 +128,12 @@ function getStreams(id, type, season, episode) {
 
           resolve([stream]);
         }).catch(function () {
-          // If the refresh probe fails, return the URL extracted from the page.
-          // The modified client can still request it through its internal proxy.
+          // Even when the initial probe/refresh fails, preserve the historical
+          // local-proxy flow so it can retry and refresh from the media ID.
           var fallbackStream = {
             name: 'Vidxgo',
             title: 'Vidxgo' + (isSeries ? (' S' + (Number(season) || 1) + 'E' + (Number(episode) || 1)) : ''),
-            url: masterUrl,
+            url: buildProxyUrl(masterUrl),
             quality: "1080",
             headers: VD_M3U8_HEADERS,
             behaviorHints: {
@@ -332,6 +335,17 @@ function extractSubtitles(decodedJs) {
   } catch (e) {
     return [];
   }
+}
+
+function encodeB64Url(str) {
+  return Buffer.from(str, 'utf8').toString('base64')
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_')
+    .replace(/=+$/, '');
+}
+
+function buildProxyUrl(masterUrl) {
+  return '/clone/manifest.m3u8?d=' + encodeB64Url(masterUrl);
 }
 
 module.exports = { getStreams: getStreams };
