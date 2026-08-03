@@ -1,5 +1,5 @@
-/* Vidxgo (vd) provider - Nuvio plugin
- * Movies and TV series. XOR-decodes blocks to extract master.m3u8 URL.
+/* Vidxgo (vd) provider - standalone Nuvio/Stremio plugin
+ * Movies and TV series. XOR-decodes blocks to extract a direct master.m3u8 URL.
  */
 var Buffer = typeof Buffer !== 'undefined' ? Buffer : require('buffer').Buffer;
 
@@ -31,17 +31,6 @@ var VD_PAGE_HEADERS = {
   'DNT': '1'
 };
 
-function getVidxgoHostUrl(explicitHost) {
-  var value = explicitHost || '';
-  if (!value && typeof globalThis !== 'undefined') {
-    value = globalThis.HOST_URL || globalThis.host_url || '';
-  }
-  if (!value && typeof process !== 'undefined' && process.env) {
-    value = process.env.HOST_URL || '';
-  }
-  return String(value || 'https://toastflix.stremio-italia.eu').replace(/\/+$/, '');
-}
-
 function _vdTmdbToImdb(tmdbId, type) {
   return new Promise(function (resolve) {
     if (/^tt\d+$/.test(tmdbId)) {
@@ -67,9 +56,8 @@ function _vdTmdbToImdb(tmdbId, type) {
   });
 }
 
-function getStreams(id, type, season, episode, hostUrl) {
+function getStreams(id, type, season, episode) {
   return new Promise(function (resolve, reject) {
-    var cloneHost = getVidxgoHostUrl(hostUrl);
     var cleanId = String(id || '').replace(/^tmdb:/, '');
     var mediaType = String(type || 'movie').toLowerCase();
     var isSeries = mediaType === 'series' || mediaType === 'tv';
@@ -116,13 +104,14 @@ function getStreams(id, type, season, episode, hostUrl) {
         var subtitles = extractSubtitles(decoded);
 
         resolveVidxgoMasterUrl(masterUrl).then(function (resolvedMasterUrl) {
-          var streamUrl = buildProxyUrl(resolvedMasterUrl || masterUrl, cloneHost);
+          var streamUrl = resolvedMasterUrl || masterUrl;
 
           var stream = {
             name: 'Vidxgo',
             title: 'Vidxgo' + (isSeries ? (' S' + (Number(season) || 1) + 'E' + (Number(episode) || 1)) : ''),
             url: streamUrl,
             quality: "1080",
+            headers: VD_M3U8_HEADERS,
             behaviorHints: {
               notWebReady: true,
               proxyHeaders: { request: VD_M3U8_HEADERS },
@@ -136,13 +125,14 @@ function getStreams(id, type, season, episode, hostUrl) {
 
           resolve([stream]);
         }).catch(function () {
-          // Preserve the previous output as a last-resort fallback. The clone
-          // endpoint may still be able to refresh the media ID server-side.
+          // If the refresh probe fails, return the URL extracted from the page.
+          // The modified client can still request it through its internal proxy.
           var fallbackStream = {
             name: 'Vidxgo',
             title: 'Vidxgo' + (isSeries ? (' S' + (Number(season) || 1) + 'E' + (Number(episode) || 1)) : ''),
-            url: buildProxyUrl(masterUrl, cloneHost),
+            url: masterUrl,
             quality: "1080",
+            headers: VD_M3U8_HEADERS,
             behaviorHints: {
               notWebReady: true,
               proxyHeaders: { request: VD_M3U8_HEADERS },
@@ -205,8 +195,7 @@ function refreshVidxgoMaster(mediaId) {
 
   var refreshUrl = VD_DOMAIN + '/t/' + mediaId;
   var headers = Object.assign({}, VD_M3U8_HEADERS, {
-    'Referer': refreshUrl,
-    'Sec-Fetch-Site': 'same-origin'
+    'Referer': refreshUrl
   });
 
   return fetch(refreshUrl, {
@@ -343,17 +332,6 @@ function extractSubtitles(decodedJs) {
   } catch (e) {
     return [];
   }
-}
-
-function encodeB64Url(str) {
-  return Buffer.from(str, 'utf8').toString('base64')
-    .replace(/\+/g, '-')
-    .replace(/\//g, '_')
-    .replace(/=+$/, '');
-}
-
-function buildProxyUrl(masterUrl, hostUrl) {
-  return getVidxgoHostUrl(hostUrl) + '/clone/manifest.m3u8?d=' + encodeB64Url(masterUrl);
 }
 
 module.exports = { getStreams: getStreams };
