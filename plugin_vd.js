@@ -1,22 +1,21 @@
 /* Vidxgo (vd) provider - standalone Nuvio/Stremio plugin
  * Movies and TV series. XOR-decodes blocks to extract a direct master.m3u8 URL.
- * UPDATED 2026-08-27 to match provider/vd.py:
- *  - refresh via embed page (VD_DOMAIN/{media_id}?__toast_refresh=...), not /t/ (502-prone)
- *  - token expiry via ?e= (ms), TTL 30s, BUFFER 30s, in-memory cache + dedup lock
- *  - dual streams: direct via /clone/manifest.m3u8 + local extractor v12
- *  - multi-audio detection (keep HLS logic), bingeGroup hash md5(vidxgo-id)[:12]
- *  - PAGE_HEADERS Accept-Language it-IT, subtitles origin handling
+ * FIXED:
+ *  - Use https.get with altadefinizionex.live referer to completely bypass Cloudflare 403
+ *  - Execute both XOR patterns in decodeXorBlocks so the stream master.m3u8 is not missed
+ *  - Provide direct CDN master URL in streams so video plays directly without local server /clone issues
  */
 var Buffer = typeof Buffer !== 'undefined' ? Buffer : require('buffer').Buffer;
 var crypto = (function(){ try{ return require('crypto'); }catch(e){ return null; }})();
+var https = (function(){ try{ return require('https'); }catch(e){ return null; }})();
 
 var TMDB_API_KEY = '68e094699525b18a70bab2f86b1fa706';
 var VD_DOMAIN = 'https://v.vidxgo.co';
 
 var VD_M3U8_HEADERS = {
-  'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36',
+  'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36',
   'Accept': '*/*',
-  'Accept-Language': 'it-IT,it;q=0.9,en;q=0.8',
+  'Accept-Language': 'en-US,en;q=0.9',
   'Referer': VD_DOMAIN + '/',
   'Origin': VD_DOMAIN,
   'Sec-Fetch-Dest': 'empty',
@@ -27,21 +26,23 @@ var VD_M3U8_HEADERS = {
 var VD_PAGE_HEADERS = {
   'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64; rv:150.0) Gecko/20100101 Firefox/150.0',
   'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-  'Accept-Language': 'it-IT,it;q=0.9,en;q=0.8',
-  'Referer': VD_DOMAIN + '/',
+  'Accept-Language': 'en-US,en;q=0.9',
   'Sec-GPC': '1',
+  'Alt-Used': 'v.vidxgo.co',
   'Connection': 'keep-alive',
   'Upgrade-Insecure-Requests': '1',
   'Sec-Fetch-Dest': 'iframe',
   'Sec-Fetch-Mode': 'navigate',
-  'Sec-Fetch-Site': 'same-origin',
-  'DNT': '1'
+  'Sec-Fetch-Site': 'none',
+  'DNT': '1',
+  'Referer': 'https://altadefinizionex.live/',
+  'Priority': 'u=0, i'
 };
 
 var _REFRESH_TTL = 30;
 var _TOKEN_BUFFER = 30;
-var _refreshCache = {}; // media_id -> {url, expiresAt}
-var _refreshPromise = {}; // media_id -> Promise
+var _refreshCache = {};
+var _refreshPromise = {};
 
 function _vdTmdbToImdb(tmdbId, type) {
   return new Promise(function (resolve) {
@@ -69,14 +70,14 @@ function _vdTmdbToImdb(tmdbId, type) {
 
 function md5hex(str) {
   if (crypto && crypto.createHash) {
-    try { return crypto.createHash('md5').update(str, 'utf8').digest('hex'); } catch(e) {}
+    return crypto.createHash('md5').update(str).digest('hex');
   }
-  // fallback: simple hash (not cryptographic, but keeps bingeGroup stable)
   var hash = 0;
-  for (var i = 0; i < str.length; i++) hash = ((hash << 5) - hash) + str.charCodeAt(i) | 0;
-  var hex = (hash >>> 0).toString(16);
-  while (hex.length < 8) hex = '0' + hex;
-  return (hex + hex + hex + hex).slice(0, 32);
+  for (var i = 0; i < str.length; i++) {
+    hash = ((hash << 5) - hash) + str.charCodeAt(i);
+    hash |= 0;
+  }
+  return Math.abs(hash).toString(16);
 }
 
 function getStreams(id, type, season, episode) {
@@ -125,29 +126,21 @@ function getStreams(id, type, season, episode) {
 
         var subtitles = extractSubtitles(decoded);
         var mediaId = extractVidxgoMediaId(masterUrl);
-        if (!mediaId) {
-          // fallback: try to derive from page url shape, but keep master as-is
-          mediaId = null;
-        }
 
-        // probe + refresh handled by resolveVidxgoMasterUrl (now cache-aware)
         resolveVidxgoMasterUrl(masterUrl, mediaId).then(function (resolvedMasterUrl) {
           var finalMaster = resolvedMasterUrl || masterUrl;
 
-          // multi-audio gate: keep direct only if >1 audio tracks? vd.py keeps only if multi; plugin keeps both but marks flag
-          // For standalone plugin we always return both, but set _vd_multi for downstream filtering
           probeMultiAudio(finalMaster).then(function (isMultiAudio) {
-            var streamUrl = buildProxyUrl(finalMaster);
             var bgHash = md5hex('vidxgo-' + imdbId).slice(0, 12);
             var bgBase = 'sg-' + bgHash;
 
             var streams = [];
 
-            // Direct via /clone (auto refresh during playback by hosting server)
+            // 1. Direct stream verso la CDN (funziona direttamente senza proxy locale)
             var directStream = {
               name: 'Server 12 Direct',
-              title: 'Server 12 \u00b7 direct \u00b7 auto refresh',
-              url: streamUrl,
+              title: 'Server 12 \u00b7 1080p \u00b7 Direct',
+              url: finalMaster,
               quality: "1080",
               _vd_multi: !!isMultiAudio,
               headers: VD_M3U8_HEADERS,
@@ -160,61 +153,30 @@ function getStreams(id, type, season, episode) {
             if (subtitles && subtitles.length > 0) directStream.subtitles = subtitles;
             streams.push(directStream);
 
-            // Local extractor fallback (v12)
-            // NOTE: hosting side must expose /extractor/v12?t=... + /clone handler; for pure Stremio plugin the extractor URL will 404,
-            // so keep it as secondary. If host_url is not available, still emit with relative URL.
-            try {
-              var hostUrl = (typeof HOST_URL !== 'undefined' && HOST_URL) ? HOST_URL : '';
-              if (hostUrl) {
-                var params = { type: mediaType, id: imdbId, season: season, episode: episode, media_id: mediaId || imdbId, master: finalMaster };
-                if (subtitles && subtitles.length) params.subtitles = JSON.stringify(subtitles);
-                // encrypt_params is not available in standalone JS; emit extractor as relative /extractor/v12 fallback with encoded params if possible
-                // Keep simple externalUrl with master for compatibility
-                var extractorUrl = hostUrl.replace(/\/$/, '') + '/extractor/v12?t=' + encodeB64Url(JSON.stringify(params));
-                var extractorStream = {
-                  name: 'Server 12 Extractor',
-                  title: 'Server 12 \u00b7 local extractor',
-                  externalUrl: extractorUrl,
-                  _vd_multi: !!isMultiAudio,
-                  behaviorHints: { notWebReady: true, bingeGroup: bgBase + '-extractor' }
-                };
-                if (subtitles && subtitles.length > 0) extractorStream.subtitles = subtitles;
-                streams.push(extractorStream);
-              } else {
-                // Fallback single-stream mode (pure Stremio plugin without hostUrl)
-                // keep only direct for back-compat; no externalUrl to avoid broken link
+            // 2. Clone stream fallback
+            var cloneStream = {
+              name: 'Server 12 Auto-Refresh',
+              title: 'Server 12 \u00b7 1080p \u00b7 Auto Refresh',
+              url: buildProxyUrl(finalMaster),
+              quality: "1080",
+              _vd_multi: !!isMultiAudio,
+              headers: VD_M3U8_HEADERS,
+              behaviorHints: {
+                notWebReady: true,
+                proxyHeaders: { request: VD_M3U8_HEADERS },
+                bingeGroup: bgBase + '-clone'
               }
-            } catch(e) {}
+            };
+            if (subtitles && subtitles.length > 0) cloneStream.subtitles = subtitles;
+            streams.push(cloneStream);
 
-            // Fallback: if no hostUrl, ensure at least direct is returned (already)
-            // For clients that only handle `url`, ensure direct is first
-            resolve(streams.length ? streams : [{
-              name: 'Vidxgo',
-              title: 'Vidxgo' + (isSeries ? (' S' + (Number(season) || 1) + 'E' + (Number(episode) || 1)) : ''),
-              url: streamUrl,
-              quality: "1080",
-              headers: VD_M3U8_HEADERS,
-              behaviorHints: { notWebReady: true, proxyHeaders: { request: VD_M3U8_HEADERS }, bingeGroup: bgBase }
-            }]);
-          }).catch(function(){
-            // on multi-audio probe failure, still return direct
-            var streamUrl = buildProxyUrl(finalMaster);
-            var bgHash = md5hex('vidxgo-' + imdbId).slice(0, 12);
-            resolve([{
-              name: 'Server 12 Direct',
-              title: 'Server 12 \u00b7 direct \u00b7 auto refresh',
-              url: streamUrl,
-              quality: "1080",
-              _vd_multi: false,
-              headers: VD_M3U8_HEADERS,
-              behaviorHints: { notWebReady: true, proxyHeaders: { request: VD_M3U8_HEADERS }, bingeGroup: 'sg-' + bgHash + '-direct' }
-            }]);
+            resolve(streams);
           });
         }).catch(function () {
           var fallbackStream = {
-            name: 'Vidxgo',
-            title: 'Vidxgo' + (isSeries ? (' S' + (Number(season) || 1) + 'E' + (Number(episode) || 1)) : ''),
-            url: buildProxyUrl(masterUrl),
+            name: 'Server 12 Direct',
+            title: 'Server 12 \u00b7 1080p \u00b7 Direct',
+            url: masterUrl,
             quality: "1080",
             headers: VD_M3U8_HEADERS,
             behaviorHints: {
@@ -232,6 +194,25 @@ function getStreams(id, type, season, episode) {
 }
 
 function fetchVidxgoPage(url, cb) {
+  if (https && https.get) {
+    try {
+      https.get(url, { headers: VD_PAGE_HEADERS, timeout: 20000 }, function (res) {
+        if (res.statusCode !== 200) {
+          return cb(new Error('HTTP ' + res.statusCode), null);
+        }
+        var chunks = [];
+        res.on('data', function (chunk) { chunks.push(chunk); });
+        res.on('end', function () {
+          var body = Buffer.concat(chunks).toString('utf-8');
+          cb(null, body);
+        });
+      }).on('error', function (err) {
+        cb(err, null);
+      });
+      return;
+    } catch (e) {}
+  }
+
   fetch(url, { headers: VD_PAGE_HEADERS, timeout: 20000 })
     .then(function (r) { return r.text(); })
     .then(function (html) { cb(null, html); })
@@ -275,14 +256,9 @@ function extractVidxgoMediaId(masterUrl) {
 }
 
 function probeVidxgoMaster(masterUrl) {
-  return fetch(masterUrl, {
-    headers: VD_M3U8_HEADERS,
-    timeout: 12000
-  }).then(function (response) {
-    if (!response.ok) return false;
-    return response.text().then(function (text) {
-      return String(text || '').trim().indexOf('#EXTM3U') === 0;
-    });
+  return fetchM3u8(masterUrl).then(function (res) {
+    if (res.status !== 200 || !res.text) return false;
+    return String(res.text || '').trim().indexOf('#EXTM3U') === 0;
   }).catch(function () {
     return false;
   });
@@ -302,24 +278,22 @@ function probeMultiAudio(masterUrl) {
   }).catch(function(){ return false; });
 }
 
-// --- New refresh logic matching vd.py ---
 function refreshVidxgoMaster(mediaId) {
   if (!mediaId) return Promise.resolve(null);
   var pageUrl = pageUrlForMediaId(mediaId);
   if (!pageUrl) return Promise.resolve(null);
   pageUrl += '?__toast_refresh=' + Date.now() + Math.random().toString(16).slice(2);
-  var headers = Object.assign({}, VD_PAGE_HEADERS, { 'Cache-Control': 'no-cache', 'Pragma': 'no-cache' });
-  return fetch(pageUrl, { headers: headers, timeout: 20000 })
-    .then(function(response){
-      if (!response.ok) throw new Error('embed refresh failed: HTTP ' + response.status);
-      return response.text();
-    }).then(function(html){
+  
+  return new Promise(function (resolve) {
+    fetchVidxgoPage(pageUrl, function (err, html) {
+      if (err || !html) return resolve(null);
       var decoded = decodeXorBlocks(html) || tryFallbackDecode(html);
-      if (!decoded) throw new Error('decode failed');
+      if (!decoded) return resolve(null);
       var url = extractMasterUrl(decoded);
-      if (!url) throw new Error('master not found in embed page');
-      return url.replace(/\\/g, '');
-    }).catch(function(){ return null; });
+      if (!url) return resolve(null);
+      resolve(url.replace(/\\/g, ''));
+    });
+  });
 }
 
 function refreshCached(mediaId, force) {
@@ -374,10 +348,10 @@ function xorDecode(key, encoded) {
 }
 
 function decodeXorBlocks(html) {
-  var blockPattern = /\(function\(\)\{var\s+k=['"]([^'"]+)['"]\s*,\s*d=atob\(['"]([^'"]+)['"]\)/g;
-  var match;
   var results = [];
+  var match;
 
+  var blockPattern = /\(function\(\)\{var\s+k=['"]([^'"]+)['"]\s*,\s*d=atob\(['"]([^'"]+)['"]\)/g;
   while ((match = blockPattern.exec(html)) !== null) {
     var key = match[1];
     var encoded = match[2];
@@ -387,16 +361,14 @@ function decodeXorBlocks(html) {
     } catch (e) { }
   }
 
-  if (results.length === 0) {
-    var blockPattern2 = /var\s+\w+\s*=\s*['"]([^'"]+)['"]\s*,\s*d\s*=\s*atob\(['"]([^'"]+)['"]\)/g;
-    while ((match = blockPattern2.exec(html)) !== null) {
-      var key2 = match[1];
-      var encoded2 = match[2];
-      try {
-        var decoded2 = xorDecode(key2, encoded2);
-        if (decoded2) results.push(decoded2);
-      } catch (e) { }
-    }
+  var blockPattern2 = /var\s+\w+\s*=\s*['"]([^'"]+)['"]\s*,\s*d\s*=\s*atob\(['"]([^'"]+)['"]\)/g;
+  while ((match = blockPattern2.exec(html)) !== null) {
+    var key2 = match[1];
+    var encoded2 = match[2];
+    try {
+      var decoded2 = xorDecode(key2, encoded2);
+      if (decoded2) results.push(decoded2);
+    } catch (e) { }
   }
 
   return results.join('\n');
