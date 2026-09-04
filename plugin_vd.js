@@ -1,9 +1,11 @@
 /* Vidxgo (vd) provider - standalone Nuvio/Stremio plugin
  * Movies and TV series. XOR-decodes blocks to extract a direct master.m3u8 URL.
- * FIXED:
- *  - Use https.get with altadefinizionex.live referer to completely bypass Cloudflare 403
- *  - Execute both XOR patterns in decodeXorBlocks so the stream master.m3u8 is not missed
- *  - Provide direct CDN master URL in streams so video plays directly without local server /clone issues
+ * ROBUST VERSION:
+ *  - Native https.get with altadefinizionex.live referer to bypass Cloudflare 403
+ *  - Multi-tier TMDb -> IMDb resolution (https.get + fetch + Cinemeta fallback)
+ *  - Automatic redirect following (301/302/307/308)
+ *  - Detailed [VidXgo] logging visible in server logs
+ *  - Direct CDN master URL for 0% VPS bandwidth
  */
 var Buffer = typeof Buffer !== 'undefined' ? Buffer : require('buffer').Buffer;
 var crypto = (function(){ try{ return require('crypto'); }catch(e){ return null; }})();
@@ -39,38 +41,98 @@ var VD_PAGE_HEADERS = {
   'Priority': 'u=0, i'
 };
 
-var _REFRESH_TTL = 30;
-var _TOKEN_BUFFER = 30;
-var _refreshCache = {};
-var _refreshPromise = {};
+function _vdLog() {
+  try {
+    var args = Array.prototype.slice.call(arguments);
+    args.unshift('[VidXgo]');
+    console.log.apply(console, args);
+  } catch (e) {}
+}
 
 function _vdTmdbToImdb(tmdbId, type) {
   return new Promise(function (resolve) {
+    if (!tmdbId) return resolve(null);
     if (/^tt\d+$/.test(tmdbId)) {
       return resolve(tmdbId);
     }
-    var endpoint = type === 'series' || type === 'tv'
+
+    var isSeries = type === 'series' || type === 'tv';
+    var tmdbUrl = isSeries
       ? 'https://api.themoviedb.org/3/tv/' + tmdbId + '/external_ids?api_key=' + TMDB_API_KEY
       : 'https://api.themoviedb.org/3/movie/' + tmdbId + '?api_key=' + TMDB_API_KEY;
 
-    fetch(endpoint, { timeout: 10000 })
-      .then(function (r) { return r.ok ? r.json() : null; })
-      .then(function (data) {
-        if (data && data.imdb_id) {
-          resolve(data.imdb_id);
-        } else if (data && data.external_ids && data.external_ids.imdb_id) {
-          resolve(data.external_ids.imdb_id);
-        } else {
-          resolve(null);
-        }
-      })
-      .catch(function () { resolve(null); });
+    // 1. Try https.get first
+    if (https && https.get) {
+      try {
+        https.get(tmdbUrl, { timeout: 8000 }, function (res) {
+          if (res.statusCode === 200) {
+            var d = '';
+            res.on('data', function (c) { d += c; });
+            res.on('end', function () {
+              try {
+                var j = JSON.parse(d);
+                var imdb = j.imdb_id || (j.external_ids && j.external_ids.imdb_id);
+                if (imdb && /^tt\d+$/.test(imdb)) return resolve(imdb);
+              } catch (pe) {}
+              tryFetchOrCinemeta();
+            });
+            return;
+          }
+          tryFetchOrCinemeta();
+        }).on('error', function () {
+          tryFetchOrCinemeta();
+        });
+        return;
+      } catch (e) {}
+    }
+
+    tryFetchOrCinemeta();
+
+    function tryFetchOrCinemeta() {
+      // 2. Try fetch()
+      if (typeof fetch !== 'undefined') {
+        fetch(tmdbUrl, { timeout: 8000 })
+          .then(function (r) { return r.ok ? r.json() : null; })
+          .then(function (data) {
+            var imdb = data && (data.imdb_id || (data.external_ids && data.external_ids.imdb_id));
+            if (imdb && /^tt\d+$/.test(imdb)) {
+              return resolve(imdb);
+            }
+            tryCinemetaFallback();
+          })
+          .catch(function () {
+            tryCinemetaFallback();
+          });
+      } else {
+        tryCinemetaFallback();
+      }
+    }
+
+    function tryCinemetaFallback() {
+      // 3. Cinemeta fallback
+      var metaType = isSeries ? 'series' : 'movie';
+      var cinemetaUrl = 'https://v3-cinemeta.strem.io/meta/' + metaType + '/' + tmdbId + '.json';
+      if (typeof fetch !== 'undefined') {
+        fetch(cinemetaUrl, { timeout: 6000 })
+          .then(function (r) { return r.ok ? r.json() : null; })
+          .then(function (metaData) {
+            var imdb = metaData && metaData.meta && metaData.meta.imdb_id;
+            if (imdb && /^tt\d+$/.test(imdb)) return resolve(imdb);
+            resolve(null);
+          })
+          .catch(function () { resolve(null); });
+      } else {
+        resolve(null);
+      }
+    }
   });
 }
 
 function md5hex(str) {
   if (crypto && crypto.createHash) {
-    return crypto.createHash('md5').update(str).digest('hex');
+    try {
+      return crypto.createHash('md5').update(str).digest('hex');
+    } catch (e) {}
   }
   var hash = 0;
   for (var i = 0; i < str.length; i++) {
@@ -82,6 +144,8 @@ function md5hex(str) {
 
 function getStreams(id, type, season, episode) {
   return new Promise(function (resolve, reject) {
+    _vdLog('getStreams invoked with id=' + id + ' type=' + type + ' s=' + season + ' e=' + episode);
+
     var cleanId = String(id || '').replace(/^tmdb:/, '');
     var mediaType = String(type || 'movie').toLowerCase();
     var isSeries = mediaType === 'series' || mediaType === 'tv';
@@ -99,6 +163,7 @@ function getStreams(id, type, season, episode) {
       if (!imdbId) {
         imdbId = cleanId;
       }
+      _vdLog('Target IMDb ID resolved to:', imdbId);
 
       var pageUrl;
       if (isSeries) {
@@ -111,32 +176,39 @@ function getStreams(id, type, season, episode) {
 
       fetchVidxgoPage(pageUrl, function (err, html) {
         if (err || !html) {
+          _vdLog('Failed to fetch embed page:', err ? err.message : 'no html');
           return resolve([]);
         }
 
         var decoded = decodeXorBlocks(html) || tryFallbackDecode(html);
         if (!decoded) {
+          _vdLog('Failed to XOR-decode page blocks');
           return resolve([]);
         }
 
         var masterUrl = extractMasterUrl(decoded);
         if (!masterUrl) {
+          _vdLog('No master.m3u8 URL found in decoded JS');
           return resolve([]);
         }
+        _vdLog('Extracted raw masterUrl:', masterUrl);
 
         var subtitles = extractSubtitles(decoded);
-        var mediaId = extractVidxgoMediaId(masterUrl);
 
-        resolveVidxgoMasterUrl(masterUrl, mediaId).then(function (resolvedMasterUrl) {
-          var finalMaster = resolvedMasterUrl || masterUrl;
+        resolveMasterRedirect(masterUrl).then(function (finalMaster) {
+          _vdLog('Final resolved master URL:', finalMaster);
+          var mediaId = extractVidxgoMediaId(finalMaster) || (isSeries ? (imdbId + '/' + season + '/' + episode) : imdbId);
+          var bgBase = 'vidxgo-' + md5hex(mediaId).slice(0, 12);
 
-          probeMultiAudio(finalMaster).then(function (isMultiAudio) {
-            var bgHash = md5hex('vidxgo-' + imdbId).slice(0, 12);
-            var bgBase = 'sg-' + bgHash;
+          fetchMasterPlaylist(finalMaster).then(function (m3u8Content) {
+            var isMultiAudio = false;
+            if (m3u8Content) {
+              isMultiAudio = hasMultipleAudioTracks(m3u8Content);
+            }
 
             var streams = [];
 
-            // 1. Direct stream verso la CDN (funziona direttamente senza proxy locale)
+            // Direct CDN stream (Primary - 0% VPS traffic)
             var directStream = {
               name: 'Server 12 Direct',
               title: 'Server 12 \u00b7 1080p \u00b7 Direct',
@@ -153,7 +225,7 @@ function getStreams(id, type, season, episode) {
             if (subtitles && subtitles.length > 0) directStream.subtitles = subtitles;
             streams.push(directStream);
 
-            // 2. Clone stream fallback
+            // Proxy / clone fallback
             var cloneStream = {
               name: 'Server 12 Auto-Refresh',
               title: 'Server 12 \u00b7 1080p \u00b7 Auto Refresh',
@@ -170,9 +242,11 @@ function getStreams(id, type, season, episode) {
             if (subtitles && subtitles.length > 0) cloneStream.subtitles = subtitles;
             streams.push(cloneStream);
 
+            _vdLog('Returning ' + streams.length + ' stream(s) for ' + imdbId);
             resolve(streams);
           });
-        }).catch(function () {
+        }).catch(function (resErr) {
+          _vdLog('resolveMasterRedirect fallback due to error:', resErr ? resErr.message : '');
           var fallbackStream = {
             name: 'Server 12 Direct',
             title: 'Server 12 \u00b7 1080p \u00b7 Direct',
@@ -193,13 +267,32 @@ function getStreams(id, type, season, episode) {
   });
 }
 
-function fetchVidxgoPage(url, cb) {
+function fetchVidxgoPage(url, cb, redirects) {
+  if (redirects === undefined) redirects = 3;
+  _vdLog('Fetching page:', url);
+
   if (https && https.get) {
     try {
       https.get(url, { headers: VD_PAGE_HEADERS, timeout: 20000 }, function (res) {
-        if (res.statusCode !== 200) {
-          return cb(new Error('HTTP ' + res.statusCode), null);
+        _vdLog('HTTP response code:', res.statusCode);
+        // Follow 3xx redirects
+        if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location && redirects > 0) {
+          var nextUrl = res.headers.location;
+          if (nextUrl.startsWith('/')) {
+            try {
+              var u = new URL(url);
+              nextUrl = u.protocol + '//' + u.host + nextUrl;
+            } catch (e) {}
+          }
+          _vdLog('Redirecting to:', nextUrl);
+          return fetchVidxgoPage(nextUrl, cb, redirects - 1);
         }
+
+        if (res.statusCode !== 200) {
+          _vdLog('Non-200 code from https.get, trying fetch fallback...');
+          return tryFetchFallback(url, cb);
+        }
+
         var chunks = [];
         res.on('data', function (chunk) { chunks.push(chunk); });
         res.on('end', function () {
@@ -207,12 +300,20 @@ function fetchVidxgoPage(url, cb) {
           cb(null, body);
         });
       }).on('error', function (err) {
-        cb(err, null);
+        _vdLog('https.get error:', err.message, 'trying fetch fallback...');
+        tryFetchFallback(url, cb);
       });
       return;
-    } catch (e) {}
+    } catch (e) {
+      _vdLog('https.get exception:', e.message);
+    }
   }
 
+  tryFetchFallback(url, cb);
+}
+
+function tryFetchFallback(url, cb) {
+  if (typeof fetch === 'undefined') return cb(new Error('Neither https nor fetch is available'), null);
   fetch(url, { headers: VD_PAGE_HEADERS, timeout: 20000 })
     .then(function (r) { return r.text(); })
     .then(function (html) { cb(null, html); })
@@ -248,90 +349,59 @@ function extractVidxgoMediaId(masterUrl) {
       if (parts[i].indexOf('master') !== -1) break;
       mediaParts.push(parts[i]);
     }
-    if (mediaParts[0] === 'tv') mediaParts.shift();
-    return mediaParts.length > 0 ? mediaParts.join('/') : null;
+    return mediaParts.join('/');
   } catch (e) {
     return null;
   }
 }
 
-function probeVidxgoMaster(masterUrl) {
-  return fetchM3u8(masterUrl).then(function (res) {
-    if (res.status !== 200 || !res.text) return false;
-    return String(res.text || '').trim().indexOf('#EXTM3U') === 0;
-  }).catch(function () {
-    return false;
-  });
-}
-
-function fetchM3u8(url) {
-  return fetch(url, { headers: VD_M3U8_HEADERS, timeout: 12000 })
-    .then(function(r){ return r.ok ? r.text().then(function(t){ return {text:t, status:r.status}; }) : {text:'', status:r.status}; })
-    .catch(function(){ return {text:'', status:0}; });
-}
-
-function probeMultiAudio(masterUrl) {
-  return fetchM3u8(masterUrl).then(function(res){
-    if (res.status !== 200 || !res.text) return false;
-    var tags = res.text.match(/#EXT-X-MEDIA:TYPE=AUDIO[^\n]*/gi);
-    return !!(tags && tags.length > 1);
-  }).catch(function(){ return false; });
-}
-
-function refreshVidxgoMaster(mediaId) {
-  if (!mediaId) return Promise.resolve(null);
-  var pageUrl = pageUrlForMediaId(mediaId);
-  if (!pageUrl) return Promise.resolve(null);
-  pageUrl += '?__toast_refresh=' + Date.now() + Math.random().toString(16).slice(2);
-  
+function resolveMasterRedirect(url) {
   return new Promise(function (resolve) {
-    fetchVidxgoPage(pageUrl, function (err, html) {
-      if (err || !html) return resolve(null);
-      var decoded = decodeXorBlocks(html) || tryFallbackDecode(html);
-      if (!decoded) return resolve(null);
-      var url = extractMasterUrl(decoded);
-      if (!url) return resolve(null);
-      resolve(url.replace(/\\/g, ''));
+    fetch(url, {
+      method: 'GET',
+      headers: VD_M3U8_HEADERS,
+      redirect: 'follow',
+      timeout: 15000
+    }).then(function (r) {
+      resolve(r.url || url);
+    }).catch(function () {
+      resolve(url);
     });
   });
 }
 
-function refreshCached(mediaId, force) {
-  var now = Date.now() / 1000;
-  function usable(entry){
-    if (!entry || !entry.url || entry.expiresAt <= now) return null;
-    var exp = tokenExpiry(entry.url);
-    if (exp !== null && exp - _TOKEN_BUFFER <= now) return null;
-    return entry.url;
+function fetchMasterPlaylist(url) {
+  return new Promise(function (resolve) {
+    fetch(url, {
+      headers: VD_M3U8_HEADERS,
+      timeout: 10000
+    }).then(function (r) {
+      if (!r.ok) return resolve(null);
+      return r.text();
+    }).then(function (text) {
+      resolve(text || null);
+    }).catch(function () {
+      resolve(null);
+    });
+  });
+}
+
+function hasMultipleAudioTracks(m3u8Text) {
+  if (!m3u8Text) return false;
+  var audioGroupMatches = m3u8Text.match(/#EXT-X-MEDIA:TYPE=AUDIO/g);
+  if (audioGroupMatches && audioGroupMatches.length > 1) {
+    return true;
   }
-  var cached = _refreshCache[mediaId];
-  var url = usable(cached);
-  if (url && !force) return Promise.resolve(url);
-  if (_refreshPromise[mediaId]) return _refreshPromise[mediaId];
-
-  var p = refreshVidxgoMaster(mediaId).then(function(freshUrl){
-    if (freshUrl) {
-      var exp = tokenExpiry(freshUrl);
-      var ttl = _REFRESH_TTL;
-      if (exp !== null) ttl = Math.max(5, Math.min(ttl, exp - (Date.now()/1000) - _TOKEN_BUFFER));
-      _refreshCache[mediaId] = { url: freshUrl, expiresAt: (Date.now()/1000) + ttl };
-      return freshUrl;
+  var audioMatches = m3u8Text.match(/#EXT-X-STREAM-INF:[^\n]*AUDIO="([^"]+)"/g);
+  if (audioMatches && audioMatches.length > 1) {
+    var groups = {};
+    for (var i = 0; i < audioMatches.length; i++) {
+      var m = audioMatches[i].match(/AUDIO="([^"]+)"/);
+      if (m && m[1]) groups[m[1]] = true;
     }
-    return null;
-  }).finally(function(){ delete _refreshPromise[mediaId]; });
-  _refreshPromise[mediaId] = p;
-  return p;
-}
-
-function resolveVidxgoMasterUrl(masterUrl, knownMediaId) {
-  return probeVidxgoMaster(masterUrl).then(function (isValid) {
-    if (isValid) return masterUrl;
-    var mediaId = knownMediaId || extractVidxgoMediaId(masterUrl);
-    if (!mediaId) return masterUrl;
-    return refreshCached(mediaId, false).then(function (freshUrl) {
-      return freshUrl || masterUrl;
-    });
-  });
+    return Object.keys(groups).length > 1;
+  }
+  return false;
 }
 
 function xorDecode(key, encoded) {
@@ -348,30 +418,33 @@ function xorDecode(key, encoded) {
 }
 
 function decodeXorBlocks(html) {
-  var results = [];
-  var match;
+  try {
+    var results = [];
+    var match;
 
-  var blockPattern = /\(function\(\)\{var\s+k=['"]([^'"]+)['"]\s*,\s*d=atob\(['"]([^'"]+)['"]\)/g;
-  while ((match = blockPattern.exec(html)) !== null) {
-    var key = match[1];
-    var encoded = match[2];
-    try {
-      var decoded = xorDecode(key, encoded);
-      if (decoded) results.push(decoded);
-    } catch (e) { }
-  }
+    var p1 = /\(function\(\)\{var\s+k=['"]([^'"]+)['"]\s*,\s*d=atob\(['"]([^'"]+)['"]\)/g;
+    while ((match = p1.exec(html)) !== null) {
+      var d1 = xorDecode(match[1], match[2]);
+      if (d1) results.push(d1);
+    }
 
-  var blockPattern2 = /var\s+\w+\s*=\s*['"]([^'"]+)['"]\s*,\s*d\s*=\s*atob\(['"]([^'"]+)['"]\)/g;
-  while ((match = blockPattern2.exec(html)) !== null) {
-    var key2 = match[1];
-    var encoded2 = match[2];
-    try {
-      var decoded2 = xorDecode(key2, encoded2);
-      if (decoded2) results.push(decoded2);
-    } catch (e) { }
-  }
+    var p2 = /var\s+\w+\s*=\s*['"]([^'"]+)['"]\s*,\s*d\s*=\s*atob\(['"]([^'"]+)['"]\)/g;
+    while ((match = p2.exec(html)) !== null) {
+      var d2 = xorDecode(match[1], match[2]);
+      if (d2) results.push(d2);
+    }
 
-  return results.join('\n');
+    var p3 = /var\s+\w+\s*=\s*['"]([^'"]+)['"]\s*,\s*\w+\s*=\s*atob\(['"]([^'"]+)['"]\)/g;
+    while ((match = p3.exec(html)) !== null) {
+      var d3 = xorDecode(match[1], match[2]);
+      if (d3) results.push(d3);
+    }
+
+    if (results.length > 0) {
+      return results.join('\n');
+    }
+  } catch (e) { }
+  return null;
 }
 
 function tryFallbackDecode(html) {
