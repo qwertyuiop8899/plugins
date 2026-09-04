@@ -1,11 +1,6 @@
 /* Vidxgo (vd) provider - standalone Nuvio/Stremio plugin
- * Movies and TV series. XOR-decodes blocks to extract a direct master.m3u8 URL.
+ * Movies and TV series. XOR-decodes blocks to extract direct master.m3u8 URL.
  * Base: commit f33dba160f22e2b54171fbe798114b77855a95b5
- * FIX:
- *  - Referer altadefinizionex.live per bypassare Cloudflare 403
- *  - Esecuzione di entrambi i pattern XOR in decodeXorBlocks
- *  - https.get nativo Node per evitare il blocco di needle nei server locali
- *  - Risposta rapida (<1s) senza probe CDN bloccanti
  */
 var Buffer = typeof Buffer !== 'undefined' ? Buffer : require('buffer').Buffer;
 var crypto = (function(){ try{ return require('crypto'); }catch(e){ return null; }})();
@@ -14,11 +9,11 @@ var TMDB_API_KEY = '68e094699525b18a70bab2f86b1fa706';
 var VD_DOMAIN = 'https://v.vidxgo.co';
 
 var VD_M3U8_HEADERS = {
-  'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36',
+  'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64; rv:150.0) Gecko/20100101 Firefox/150.0',
   'Accept': '*/*',
   'Accept-Language': 'it-IT,it;q=0.9,en;q=0.8',
-  'Referer': 'https://altadefinizionex.live/',
-  'Origin': VD_DOMAIN,
+  'Referer': 'https://v.vidxgo.co/',
+  'Origin': 'https://v.vidxgo.co',
   'Sec-Fetch-Dest': 'empty',
   'Sec-Fetch-Mode': 'cors',
   'Sec-Fetch-Site': 'cross-site'
@@ -37,11 +32,6 @@ var VD_PAGE_HEADERS = {
   'Sec-Fetch-Site': 'none',
   'DNT': '1'
 };
-
-var _REFRESH_TTL = 30;
-var _TOKEN_BUFFER = 30;
-var _refreshCache = {};
-var _refreshPromise = {};
 
 function _vdTmdbToImdb(tmdbId, type) {
   return new Promise(function (resolve) {
@@ -156,31 +146,12 @@ function getStreams(id, type, season, episode) {
         var bgHash = md5hex('vidxgo-' + imdbId).slice(0, 12);
         var bgBase = 'sg-' + bgHash;
 
-        var streams = [];
-
-        // 1. Direct CDN stream (riproduzione immediata diretta)
-        var cdnStream = {
-          name: 'Server 12 Direct',
-          title: 'Server 12 \u00b7 Direct CDN \u00b7 1080p',
-          url: finalMaster,
-          quality: "1080",
-          _vd_multi: true,
-          headers: VD_M3U8_HEADERS,
-          behaviorHints: {
-            notWebReady: true,
-            proxyHeaders: { request: VD_M3U8_HEADERS },
-            bingeGroup: bgBase + '-cdn'
-          }
-        };
-        if (subtitles && subtitles.length > 0) cdnStream.subtitles = subtitles;
-        streams.push(cdnStream);
-
-        // 2. Direct via /clone (auto-refresh dal server locale)
+        // UNICO STREAM: passa dal router locale /clone (gestione token e auto-refresh attiva)
         var directStream = {
           name: 'Server 12 Direct',
           title: 'Server 12 \u00b7 direct \u00b7 auto refresh',
           url: streamUrl,
-          quality: "1080",
+          quality: '1080',
           _vd_multi: true,
           headers: VD_M3U8_HEADERS,
           behaviorHints: {
@@ -190,9 +161,8 @@ function getStreams(id, type, season, episode) {
           }
         };
         if (subtitles && subtitles.length > 0) directStream.subtitles = subtitles;
-        streams.push(directStream);
 
-        resolve(streams);
+        resolve([directStream]);
       });
     });
   });
@@ -262,77 +232,6 @@ function extractVidxgoMediaId(masterUrl) {
   }
 }
 
-function probeVidxgoMaster(masterUrl) {
-  return Promise.resolve(true);
-}
-
-function fetchM3u8(url) {
-  return fetch(url, { headers: VD_M3U8_HEADERS, timeout: 12000 })
-    .then(function(r){ return r.ok ? r.text().then(function(t){ return {text:t, status:r.status}; }) : {text:'', status:r.status}; })
-    .catch(function(){ return {text:'', status:0}; });
-}
-
-function probeMultiAudio(masterUrl) {
-  return Promise.resolve(true);
-}
-
-function refreshVidxgoMaster(mediaId) {
-  if (!mediaId) return Promise.resolve(null);
-  var pageUrl = pageUrlForMediaId(mediaId);
-  if (!pageUrl) return Promise.resolve(null);
-  pageUrl += '?__toast_refresh=' + Date.now() + Math.random().toString(16).slice(2);
-  var headers = Object.assign({}, VD_PAGE_HEADERS, { 'Cache-Control': 'no-cache', 'Pragma': 'no-cache' });
-  return fetch(pageUrl, { headers: headers, timeout: 20000 })
-    .then(function(response){
-      if (!response.ok) throw new Error('embed refresh failed: HTTP ' + response.status);
-      return response.text();
-    }).then(function(html){
-      var decoded = decodeXorBlocks(html) || tryFallbackDecode(html);
-      if (!decoded) throw new Error('decode failed');
-      var url = extractMasterUrl(decoded);
-      if (!url) throw new Error('master not found in embed page');
-      return url.replace(/\\/g, '');
-    }).catch(function(){ return null; });
-}
-
-function refreshCached(mediaId, force) {
-  var now = Date.now() / 1000;
-  function usable(entry){
-    if (!entry || !entry.url || entry.expiresAt <= now) return null;
-    var exp = tokenExpiry(entry.url);
-    if (exp !== null && exp - _TOKEN_BUFFER <= now) return null;
-    return entry.url;
-  }
-  var cached = _refreshCache[mediaId];
-  var url = usable(cached);
-  if (url && !force) return Promise.resolve(url);
-  if (_refreshPromise[mediaId]) return _refreshPromise[mediaId];
-
-  var p = refreshVidxgoMaster(mediaId).then(function(freshUrl){
-    if (freshUrl) {
-      var exp = tokenExpiry(freshUrl);
-      var ttl = _REFRESH_TTL;
-      if (exp !== null) ttl = Math.max(5, Math.min(ttl, exp - (Date.now()/1000) - _TOKEN_BUFFER));
-      _refreshCache[mediaId] = { url: freshUrl, expiresAt: (Date.now()/1000) + ttl };
-      return freshUrl;
-    }
-    return null;
-  }).finally(function(){ delete _refreshPromise[mediaId]; });
-  _refreshPromise[mediaId] = p;
-  return p;
-}
-
-function resolveVidxgoMasterUrl(masterUrl, knownMediaId) {
-  return probeVidxgoMaster(masterUrl).then(function (isValid) {
-    if (isValid) return masterUrl;
-    var mediaId = knownMediaId || extractVidxgoMediaId(masterUrl);
-    if (!mediaId) return masterUrl;
-    return refreshCached(mediaId, false).then(function (freshUrl) {
-      return freshUrl || masterUrl;
-    });
-  });
-}
-
 function xorDecode(key, encoded) {
   try {
     var decoded = Buffer.from(encoded, 'base64');
@@ -360,7 +259,7 @@ function decodeXorBlocks(html) {
     } catch (e) { }
   }
 
-  // Esegui sempre anche il pattern 2 (dove oggi si trova master.m3u8)
+  // Blocco dove si trova master.m3u8
   var blockPattern2 = /var\s+\w+\s*=\s*['"]([^'"]+)['"]\s*,\s*d\s*=\s*atob\(['"]([^'"]+)['"]\)/g;
   while ((match = blockPattern2.exec(html)) !== null) {
     var key2 = match[1];
