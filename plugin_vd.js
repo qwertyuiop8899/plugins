@@ -3,7 +3,10 @@
  * Routes to local /clone/manifest.m3u8 for auto-refresh and token lifecycle.
  */
 var Buffer = typeof Buffer !== 'undefined' ? Buffer : require('buffer').Buffer;
-var crypto = (function () { try { return require('crypto'); } catch (e) { return null; } })();
+var crypto = (function () {
+  try { if (typeof crypto !== 'undefined' && crypto && crypto.createHash) return crypto; } catch (e) {}
+  try { return require('crypto'); } catch (e) { return null; }
+})();
 
 var TMDB_API_KEY = '68e094699525b18a70bab2f86b1fa706';
 var VD_DOMAIN = 'https://v.vidxgo.co';
@@ -34,6 +37,24 @@ var VD_PAGE_HEADERS = {
   'DNT': '1'
 };
 
+var VD_CIPHERS = [
+  'TLS_AES_128_GCM_SHA256',
+  'TLS_AES_256_GCM_SHA384',
+  'TLS_CHACHA20_POLY1305_SHA256',
+  'ECDHE-ECDSA-AES128-GCM-SHA256',
+  'ECDHE-RSA-AES128-GCM-SHA256',
+  'ECDHE-ECDSA-AES256-GCM-SHA384',
+  'ECDHE-RSA-AES256-GCM-SHA384',
+  'ECDHE-ECDSA-CHACHA20-POLY1305',
+  'ECDHE-RSA-CHACHA20-POLY1305',
+  'ECDHE-RSA-AES128-SHA',
+  'ECDHE-RSA-AES256-SHA',
+  'AES128-GCM-SHA256',
+  'AES256-GCM-SHA384',
+  'AES128-SHA',
+  'AES256-SHA'
+].join(':');
+
 function _vdTmdbToImdb(tmdbId, type) {
   return new Promise(function (resolve) {
     if (!tmdbId) return resolve(null);
@@ -44,7 +65,10 @@ function _vdTmdbToImdb(tmdbId, type) {
       ? 'https://api.themoviedb.org/3/tv/' + tmdbId + '/external_ids?api_key=' + TMDB_API_KEY
       : 'https://api.themoviedb.org/3/movie/' + tmdbId + '?api_key=' + TMDB_API_KEY;
 
-    var https = (function () { try { return require('https'); } catch (e) { return null; } })();
+    var https = (function () {
+      try { if (typeof https !== 'undefined' && https && https.get) return https; } catch (e) {}
+      try { return require('https'); } catch (e) { return null; }
+    })();
     if (https && https.get) {
       try {
         https.get(endpoint, { timeout: 8000 }, function (res) {
@@ -167,10 +191,13 @@ function getStreams(id, type, season, episode) {
 }
 
 function fetchVidxgoPage(url, cb) {
-  var https = (function () { try { return require('https'); } catch (e) { return null; } })();
+  var https = (function () {
+    try { if (typeof https !== 'undefined' && https && https.get) return https; } catch (e) {}
+    try { return require('https'); } catch (e) { return null; }
+  })();
   if (https && https.get) {
     try {
-      https.get(url, { headers: VD_PAGE_HEADERS, timeout: 15000 }, function (res) {
+      https.get(url, { headers: VD_PAGE_HEADERS, ciphers: VD_CIPHERS, minVersion: 'TLSv1.2', timeout: 15000 }, function (res) {
         if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
           var nextUrl = res.headers.location;
           if (nextUrl.startsWith('/')) nextUrl = VD_DOMAIN + nextUrl;
