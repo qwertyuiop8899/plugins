@@ -1,19 +1,19 @@
 /* Vidxgo (vd) provider - standalone Nuvio/Stremio plugin
  * Movies and TV series. XOR-decodes blocks to extract direct master.m3u8 URL.
- * Base: commit f33dba160f22e2b54171fbe798114b77855a95b5
+ * Routes to local /clone/manifest.m3u8 for auto-refresh and token lifecycle.
  */
 var Buffer = typeof Buffer !== 'undefined' ? Buffer : require('buffer').Buffer;
-var crypto = (function(){ try{ return require('crypto'); }catch(e){ return null; }})();
+var crypto = (function () { try { return require('crypto'); } catch (e) { return null; } })();
 
 var TMDB_API_KEY = '68e094699525b18a70bab2f86b1fa706';
 var VD_DOMAIN = 'https://v.vidxgo.co';
 
 var VD_M3U8_HEADERS = {
-  'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64; rv:150.0) Gecko/20100101 Firefox/150.0',
+  'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36',
   'Accept': '*/*',
   'Accept-Language': 'it-IT,it;q=0.9,en;q=0.8',
-  'Referer': 'https://v.vidxgo.co/',
-  'Origin': 'https://v.vidxgo.co',
+  'Referer': VD_DOMAIN + '/',
+  'Origin': VD_DOMAIN,
   'Sec-Fetch-Dest': 'empty',
   'Sec-Fetch-Mode': 'cors',
   'Sec-Fetch-Site': 'cross-site'
@@ -23,13 +23,14 @@ var VD_PAGE_HEADERS = {
   'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64; rv:150.0) Gecko/20100101 Firefox/150.0',
   'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
   'Accept-Language': 'it-IT,it;q=0.9,en;q=0.8',
-  'Referer': 'https://altadefinizionex.live/',
+  'Referer': VD_DOMAIN + '/',
   'Sec-GPC': '1',
   'Connection': 'keep-alive',
   'Upgrade-Insecure-Requests': '1',
   'Sec-Fetch-Dest': 'iframe',
   'Sec-Fetch-Mode': 'navigate',
-  'Sec-Fetch-Site': 'none',
+  'Sec-Fetch-Site': 'same-origin',
+  'Sec-Fetch-Storage-Access': 'active',
   'DNT': '1'
 };
 
@@ -43,19 +44,19 @@ function _vdTmdbToImdb(tmdbId, type) {
       ? 'https://api.themoviedb.org/3/tv/' + tmdbId + '/external_ids?api_key=' + TMDB_API_KEY
       : 'https://api.themoviedb.org/3/movie/' + tmdbId + '?api_key=' + TMDB_API_KEY;
 
-    var https = (function(){ try { return require('https'); } catch(e){ return null; } })();
+    var https = (function () { try { return require('https'); } catch (e) { return null; } })();
     if (https && https.get) {
       try {
-        https.get(endpoint, { timeout: 8000 }, function(res) {
+        https.get(endpoint, { timeout: 8000 }, function (res) {
           if (res.statusCode === 200) {
             var buf = '';
-            res.on('data', function(d){ buf += d; });
-            res.on('end', function(){
+            res.on('data', function (d) { buf += d; });
+            res.on('end', function () {
               try {
                 var data = JSON.parse(buf);
                 var imdb = data && (data.imdb_id || (data.external_ids && data.external_ids.imdb_id));
                 if (imdb && /^tt\d+$/.test(imdb)) return resolve(imdb);
-              } catch(e){}
+              } catch (e) { }
               fallbackFetch();
             });
             return;
@@ -63,7 +64,7 @@ function _vdTmdbToImdb(tmdbId, type) {
           fallbackFetch();
         }).on('error', fallbackFetch);
         return;
-      } catch(e){}
+      } catch (e) { }
     }
     fallbackFetch();
 
@@ -85,7 +86,7 @@ function _vdTmdbToImdb(tmdbId, type) {
 
 function md5hex(str) {
   if (crypto && crypto.createHash) {
-    try { return crypto.createHash('md5').update(str, 'utf8').digest('hex'); } catch(e) {}
+    try { return crypto.createHash('md5').update(str, 'utf8').digest('hex'); } catch (e) { }
   }
   var hash = 0;
   for (var i = 0; i < str.length; i++) hash = ((hash << 5) - hash) + str.charCodeAt(i) | 0;
@@ -95,7 +96,7 @@ function md5hex(str) {
 }
 
 function getStreams(id, type, season, episode) {
-  return new Promise(function (resolve, reject) {
+  return new Promise(function (resolve) {
     var cleanId = String(id || '').replace(/^tmdb:/, '');
     var mediaType = String(type || 'movie').toLowerCase();
     var isSeries = mediaType === 'series' || mediaType === 'tv';
@@ -139,14 +140,11 @@ function getStreams(id, type, season, episode) {
         }
 
         var subtitles = extractSubtitles(decoded);
-        var mediaId = extractVidxgoMediaId(masterUrl) || (isSeries ? (imdbId + '/' + season + '/' + episode) : imdbId);
-
         var finalMaster = masterUrl;
         var streamUrl = buildProxyUrl(finalMaster);
         var bgHash = md5hex('vidxgo-' + imdbId).slice(0, 12);
         var bgBase = 'sg-' + bgHash;
 
-        // UNICO STREAM: passa dal router locale /clone (gestione token e auto-refresh attiva)
         var directStream = {
           name: 'Server 12 Direct',
           title: 'Server 12 \u00b7 direct \u00b7 auto refresh',
@@ -169,7 +167,7 @@ function getStreams(id, type, season, episode) {
 }
 
 function fetchVidxgoPage(url, cb) {
-  var https = (function(){ try { return require('https'); } catch(e){ return null; } })();
+  var https = (function () { try { return require('https'); } catch (e) { return null; } })();
   if (https && https.get) {
     try {
       https.get(url, { headers: VD_PAGE_HEADERS, timeout: 15000 }, function (res) {
@@ -184,51 +182,19 @@ function fetchVidxgoPage(url, cb) {
         res.on('end', function () { cb(null, Buffer.concat(data).toString('utf-8')); });
       }).on('error', function () { tryFetchFallback(url, cb); });
       return;
-    } catch (e) {}
+    } catch (e) { }
   }
   tryFetchFallback(url, cb);
 }
 
 function tryFetchFallback(url, cb) {
-  fetch(url, { headers: VD_PAGE_HEADERS, timeout: 20000 })
-    .then(function (r) { return r.text(); })
-    .then(function (html) { cb(null, html); })
-    .catch(function (err) { cb(err, null); });
-}
-
-function pageUrlForMediaId(mediaId) {
-  var parts = String(mediaId || '').split('/').map(function(p){ return encodeURIComponent(p); }).filter(Boolean);
-  if (!parts.length) return null;
-  return VD_DOMAIN + '/' + parts.join('/');
-}
-
-function tokenExpiry(url) {
-  try {
-    var parsed = new URL(url);
-    var e = parsed.searchParams.get('e');
-    if (!e) return null;
-    var ms = Number(e);
-    if (!isFinite(ms)) return null;
-    return ms / 1000;
-  } catch(e) { return null; }
-}
-
-function extractVidxgoMediaId(masterUrl) {
-  try {
-    var parsed = new URL(masterUrl);
-    var parts = parsed.pathname.split('/').filter(function (part) { return !!part; });
-    var hlsIndex = parts.indexOf('hls');
-    if (hlsIndex < 0) return null;
-
-    var mediaParts = [];
-    for (var i = hlsIndex + 1; i < parts.length; i++) {
-      if (parts[i].indexOf('master') !== -1) break;
-      mediaParts.push(parts[i]);
-    }
-    if (mediaParts[0] === 'tv') mediaParts.shift();
-    return mediaParts.length > 0 ? mediaParts.join('/') : null;
-  } catch (e) {
-    return null;
+  if (typeof fetch !== 'undefined') {
+    fetch(url, { headers: VD_PAGE_HEADERS, timeout: 20000 })
+      .then(function (r) { return r.text(); })
+      .then(function (html) { cb(null, html); })
+      .catch(function (err) { cb(err, null); });
+  } else {
+    cb(new Error('No fetch or https available'), null);
   }
 }
 
@@ -259,7 +225,6 @@ function decodeXorBlocks(html) {
     } catch (e) { }
   }
 
-  // Blocco dove si trova master.m3u8
   var blockPattern2 = /var\s+\w+\s*=\s*['"]([^'"]+)['"]\s*,\s*d\s*=\s*atob\(['"]([^'"]+)['"]\)/g;
   while ((match = blockPattern2.exec(html)) !== null) {
     var key2 = match[1];
