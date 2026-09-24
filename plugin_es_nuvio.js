@@ -3,6 +3,42 @@
  * with clicka.cc captcha OCR resolution (no npm dependencies).
  */
 // =========================================================================
+
+// =========================================================================
+// SAFE FETCH WRAPPER (for Nuvio / React Native client sandbox)
+// =========================================================================
+(()=>{var wr=(r,n,t)=>()=>{if(t)throw t[0];try{return r&&(n=r(r=0)),n}catch(a){throw t=[a],a}};var mr=(r,n)=>()=>{try{return n||r((n={exports:{}}).exports,n),n.exports}catch(t){throw n=0,t}};function hr(r,n){return Cr(r.subarray(Br(r,n&&n.dictionary),-4),{i:2},n&&n.out,n&&n.dictionary)}var h,S,xr,tr,er,zr,ir,ar,or,Ar,sr,Mr,Lr,W,g,o,I,B,o,o,o,o,fr,o,Sr,Tr,d,u,V,Ur,Fr,Dr,l,Cr,Ir,Br,Zr,Er,ur=wr(()=>{h=Uint8Array,S=Uint16Array,xr=Int32Array,tr=new h([0,0,0,0,0,0,0,0,1,1,1,1,2,2,2,2,3,3,3,3,4,4,4,4,5,5,5,5,0,0,0,0]),er=new h([0,0,0,0,1,1,2,2,3,3,4,4,5,5,6,6,7,7,8,8,9,9,10,10,11,11,12,12,13,13,0,0]),zr=new h([16,17,18,0,8,7,9,6,10,5,11,4,12,3,13,2,14,1,15]),ir=function(r,n){for(var t=new S(31),a=0;a<31;++a)t[a]=n+=1<<r[a-1];for(var i=new xr(t[30]),a=1;a<30;++a)for(var c=t[a];c<t[a+1];++c)i[c]=c-t[a]<<5|a;return{b:t,r:i}},ar=ir(tr,2),or=ar.b,Ar=ar.r;or[28]=258,Ar[258]=28;sr=ir(er,0),Mr=sr.b,Lr=sr.r,W=new S(32768);for(o=0;o<32768;++o)g=(o&43690)>>1|(o&21845)<<1,g=(g&52428)>>2|(g&13107)<<2,g=(g&61680)>>4|(g&3855)<<4,W[o]=((g&65280)>>8|(g&255)<<8)>>1;I=(function(r,n,t){for(var a=r.length,i=0,c=new S(n);i<a;++i)r[i]&&++c[r[i]-1];var y=new S(n);for(i=1;i<n;++i)y[i]=y[i-1]+c[i-1]<<1;var p;if(t){p=new S(1<<n);var z=15-n;for(i=0;i<a;++i)if(r[i])for(var T=i<<4|r[i],w=n-r[i],e=y[r[i]-1]++<<w,s=e|(1<<w)-1;e<=s;++e)p[W[e]>>z]=T}else for(p=new S(a),i=0;i<a;++i)r[i]&&(p[i]=W[y[r[i]-1]++]>>15-r[i]);return p}),B=new h(288);for(o=0;o<144;++o)B[o]=8;for(o=144;o<256;++o)B[o]=9;for(o=256;o<280;++o)B[o]=7;for(o=280;o<288;++o)B[o]=8;fr=new h(32);for(o=0;o<32;++o)fr[o]=5;Sr=I(B,9,1),Tr=I(fr,5,1),d=function(r){for(var n=r[0],t=1;t<r.length;++t)r[t]>n&&(n=r[t]);return n},u=function(r,n,t){var a=n/8|0;return(r[a]|r[a+1]<<8)>>(n&7)&t},V=function(r,n){var t=n/8|0;return(r[t]|r[t+1]<<8|r[t+2]<<16)>>(n&7)},Ur=function(r){return(r+7)/8|0},Fr=function(r,n,t){return(n==null||n<0)&&(n=0),(t==null||t>r.length)&&(t=r.length),new h(r.subarray(n,t))},Dr=["unexpected EOF","invalid block type","invalid length/literal","invalid distance","stream finished","no stream handler",,"no callback","invalid UTF-8 data","extra field too long","date not in range 1980-2099","filename too long","stream finishing","invalid zip data"],l=function(r,n,t){var a=new Error(n||Dr[r]);if(a.code=r,Error.captureStackTrace&&Error.captureStackTrace(a,l),!t)throw a;return a},Cr=function(r,n,t,a){var i=r.length,c=a?a.length:0;if(!i||n.f&&!n.l)return t||new h(0);var y=!t,p=y||n.i!=2,z=n.i;y&&(t=new h(i*3));var T=function(_){var rr=t.length;if(_>rr){var nr=new h(Math.max(rr*2,_));nr.set(t),t=nr}},w=n.f||0,e=n.p||0,s=n.b||0,x=n.l,Z=n.d,U=n.m,F=n.n,G=i*8;do{if(!x){w=u(r,e,1);var O=u(r,e+1,3);if(e+=3,O)if(O==1)x=Sr,Z=Tr,U=9,F=5;else if(O==2){var P=u(r,e,31)+257,Y=u(r,e+10,15)+4,j=P+u(r,e+5,31)+1;e+=14;for(var D=new h(j),$=new h(19),f=0;f<Y;++f)$[zr[f]]=u(r,e+f*3,7);e+=Y*3;for(var J=d($),vr=(1<<J)-1,cr=I($,J,1),f=0;f<j;){var K=cr[u(r,e,vr)];e+=K&15;var v=K>>4;if(v<16)D[f++]=v;else{var A=0,E=0;for(v==16?(E=3+u(r,e,3),e+=2,A=D[f-1]):v==17?(E=3+u(r,e,7),e+=3):v==18&&(E=11+u(r,e,127),e+=7);E--;)D[f++]=A}}var Q=D.subarray(0,P),m=D.subarray(P);U=d(Q),F=d(m),x=I(Q,U,1),Z=I(m,F,1)}else l(1);else{var v=Ur(e)+4,q=r[v-4]|r[v-3]<<8,L=v+q;if(L>i){z&&l(0);break}p&&T(s+q),t.set(r.subarray(v,L),s),n.b=s+=q,n.p=e=L*8,n.f=w;continue}if(e>G){z&&l(0);break}}p&&T(s+131072);for(var pr=(1<<U)-1,gr=(1<<F)-1,H=e;;H=e){var A=x[V(r,e)&pr],M=A>>4;if(e+=A&15,e>G){z&&l(0);break}if(A||l(2),M<256)t[s++]=M;else if(M==256){H=e,x=null;break}else{var X=M-254;if(M>264){var f=M-257,C=tr[f];X=u(r,e,(1<<C)-1)+or[f],e+=C}var N=Z[V(r,e)&gr],R=N>>4;N||l(3),e+=N&15;var m=Mr[R];if(R>3){var C=er[R];m+=V(r,e)&(1<<C)-1,e+=C}if(e>G){z&&l(0);break}p&&T(s+131072);var k=s+X;if(s<m){var b=c-m,yr=Math.min(m,k);for(b+s<0&&l(3);s<yr;++s)t[s]=a[b+s]}for(;s<k;++s)t[s]=t[s-m]}}n.l=x,n.p=H,n.b=s,n.f=w,x&&(w=1,n.m=U,n.d=Z,n.n=F)}while(!w);return s!=t.length&&y?Fr(t,0,s):t.subarray(0,s)},Ir=new h(0),Br=function(r,n){return((r[0]&15)!=8||r[0]>>4>7||(r[0]<<8|r[1])%31)&&l(6,"invalid zlib data"),(r[1]>>5&1)==+!n&&l(6,"invalid zlib data: "+(r[1]&32?"need":"unexpected")+" dictionary"),(r[1]>>3&4)+2};Zr=typeof TextDecoder<"u"&&new TextDecoder,Er=0;try{Zr.decode(Ir,{stream:!0}),Er=1}catch{}});var Or=mr(lr=>{ur();var Gr=typeof globalThis<"u"?globalThis:typeof window<"u"?window:lr;Gr._unzlibSync=hr});Or();})();
+
+
+function _atob(b64) {
+  if (typeof atob !== "undefined") return atob(b64);
+  var chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=";
+  var str = String(b64).replace(/=+$/, "");
+  var output = "";
+  for (var bc = 0, bs, buffer, idx = 0; buffer = str.charAt(idx++); ~buffer && (bs = bc % 4 ? bs * 64 + buffer : buffer, bc++ % 4) ? output += String.fromCharCode(255 & bs >> (-2 * bc & 6)) : 0) {
+    buffer = chars.indexOf(buffer);
+  }
+  return output;
+}
+
+var _globalFetch = (typeof globalThis !== "undefined" && globalThis.fetch) ? globalThis.fetch : (typeof window !== "undefined" && window.fetch) ? window.fetch : fetch;
+fetch = function (url, options) {
+  var targetUrl = url;
+  var lower = String(url || "").toLowerCase();
+  var isClicaDeltabit = lower.indexOf("clicka.cc/delta") >= 0 || lower.indexOf("clicka.cc/adelta") >= 0;
+  var isClicaTurbovid = lower.indexOf("clicka.cc/tv/") >= 0 || lower.indexOf("clicka.cc/tva/") >= 0;
+  var isDeltabitHost = lower.indexOf("deltabit") >= 0;
+  var isTurbovidHost = lower.indexOf("turbovid") >= 0;
+  var isSafego = lower.indexOf("safego.cc") >= 0;
+
+  if (isClicaDeltabit || isClicaTurbovid || isDeltabitHost || isTurbovidHost || isSafego) {
+    if (lower.indexOf("workers.dev") < 0) {
+      targetUrl = "https://vidclick.leanhhu061208-775.workers.dev/?url=" + encodeURIComponent(url);
+    }
+  }
+  return _globalFetch(targetUrl, options);
+}
+
 // CONFIGURATION
 // =========================================================================
 var ES_UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36';
@@ -74,6 +110,10 @@ function _buildProxyUrl(rawUrl, referer, ua, origin) {
       '&h=' + encodeURIComponent('Referer:' + referer);
     if (origin) {
       opts += '&h=' + encodeURIComponent('Origin:' + origin);
+    }
+    // If the resource is an MP4 file, force content-type to video/mp4 to override incorrect upstream content-types (e.g. text/plain on Deltabit)
+    if (rawUrl.toLowerCase().indexOf('.mp4') >= 0) {
+      opts += '&r=' + encodeURIComponent('content-type:video/mp4');
     }
     return '/proxy/' + opts + pathnameAndSearch;
   } catch (e) { return rawUrl; }
@@ -170,9 +210,12 @@ function _follow(url, options, maxHops, jar) {
         fetchOpts.headers['Cookie'] = cookieStr;
       }
 
-      // Proxy clicka.cc and safego.cc through Cloudflare Worker
       var finalFetchUrl = curUrl;
-      if (curUrl.includes('clicka.cc') || curUrl.includes('safego.cc')) {
+      var isClicaDeltabit = curUrl.includes('clicka.cc/delta') || curUrl.includes('clicka.cc/adelta');
+      var isClicaTurbovid = curUrl.includes('clicka.cc/tv/') || curUrl.includes('clicka.cc/tva/');
+      var isSafego = curUrl.includes('safego.cc');
+      
+      if (isClicaDeltabit || isClicaTurbovid || isSafego) {
         finalFetchUrl = 'https://vidclick.leanhhu061208-775.workers.dev/?url=' + encodeURIComponent(curUrl);
         fetchOpts.headers = fetchOpts.headers || {};
         fetchOpts.headers['User-Agent'] = ES_UA;
@@ -250,13 +293,12 @@ function _formEncode(obj) {
 // =========================================================================
 // PNG DECODER (Buffer + zlib, no external deps)
 // =========================================================================
-var _zlib = null;
-try { _zlib = require('zlib'); } catch (e) { }
+// zlib replaced with bundled _unzlibSync
 
 function _pngDecode(b64) {
-  if (!_zlib) throw new Error('zlib not available');
+  
   // Decode base64 to raw bytes
-  var raw = (typeof atob !== 'undefined' ? atob(b64) : require('buffer').Buffer.from(b64, 'base64').toString('latin1'));
+  var raw = _atob(b64);
   var len = raw.length;
   var bytes = new Uint8Array(len);
   for (var i = 0; i < len; i++) bytes[i] = raw.charCodeAt(i) & 0xff;
@@ -300,7 +342,7 @@ function _pngDecode(b64) {
     idatCombined.set(idatData[di2], off);
     off += idatData[di2].length;
   }
-  var decompressed = _zlib.inflateSync(idatCombined);
+  var decompressed = (typeof _unzlibSync !== 'undefined' ? _unzlibSync : globalThis._unzlibSync)(idatCombined);
   // Reconstruct image rows with filter
   var bpp = bytesPerPixel;
   var rowBytes = width * bpp;
@@ -1230,10 +1272,12 @@ function resolveClickacc(startUrl, kind, jar) {
       if (mixMatch) {
         return tryMixDropHosts(mixMatch[1]).then(function (res) {
           return {
-            url: _buildProxyUrl(res.url, 'https://' + res.host + '/', ES_UA),
-            name: 'Eurostreaming',
-            title: 'MixDrop',
-            behaviorHints: { notWebReady: true }
+            url: res.url,
+            name: "Eurostreaming - MixDrop",
+            title: "MixDrop [ITA]",
+            quality: "720p",
+            headers: { "User-Agent": ES_UA, "Referer": "https://" + res.host + "/" },
+            behaviorHints: { notWebReady: true, proxyHeaders: { request: { "User-Agent": ES_UA, "Referer": "https://" + res.host + "/" } } }
           };
         }).catch(function () {
           return Promise.reject(new Error('MixDrop extraction failed'));
@@ -1243,20 +1287,24 @@ function resolveClickacc(startUrl, kind, jar) {
     if (kind === 'tv' && _isTurbovidHost(current)) {
       return extractTurbovid(current, activeJar).then(function (video) {
         return {
-          url: _buildProxyUrl(video.url, current, video.headers['User-Agent'], video.headers['Origin']),
-          name: 'Eurostreaming',
-          title: 'Turbovid',
-          behaviorHints: { notWebReady: true }
+          url: video.url,
+          name: "Eurostreaming - Turbovid",
+          title: "Turbovid [ITA]",
+          quality: "1080p",
+          headers: { "User-Agent": video.headers["User-Agent"] || ES_UA, "Referer": current, "Origin": video.headers["Origin"] || "https://turbovid.eu" },
+          behaviorHints: { notWebReady: true, proxyHeaders: { request: { "User-Agent": video.headers["User-Agent"] || ES_UA, "Referer": current, "Origin": video.headers["Origin"] || "https://turbovid.eu" } } }
         };
       });
     }
     if (kind === 'delta' && _isDeltabitHost(current)) {
       return extractDeltabit(current, activeJar).then(function (video) {
         return {
-          url: _buildProxyUrl(video.url, current, video.headers['User-Agent'], video.headers['Origin']),
-          name: 'Eurostreaming',
-          title: 'Deltabit',
-          behaviorHints: { notWebReady: true }
+          url: video.url,
+          name: "Eurostreaming - DeltaBit",
+          title: "DeltaBit [ITA]",
+          quality: "1080p",
+          headers: { "User-Agent": video.headers["User-Agent"] || ES_UA, "Referer": current, "Origin": video.headers["Origin"] || "https://deltabit.co" },
+          behaviorHints: { notWebReady: true, proxyHeaders: { request: { "User-Agent": video.headers["User-Agent"] || ES_UA, "Referer": current, "Origin": video.headers["Origin"] || "https://deltabit.co" } } }
         };
       });
     }
@@ -1280,10 +1328,12 @@ function resolveClickacc(startUrl, kind, jar) {
             var md = _findMixdropUrl(text);
             if (md) return tryMixDropHosts(md.id).then(function (res) {
               return {
-                url: _buildProxyUrl(res.url, 'https://' + res.host + '/', ES_UA),
-                name: 'Eurostreaming',
-                title: 'MixDrop',
-                behaviorHints: { notWebReady: true }
+                url: res.url,
+            name: "Eurostreaming - MixDrop",
+            title: "MixDrop [ITA]",
+            quality: "720p",
+            headers: { "User-Agent": ES_UA, "Referer": "https://" + res.host + "/" },
+            behaviorHints: { notWebReady: true, proxyHeaders: { request: { "User-Agent": ES_UA, "Referer": "https://" + res.host + "/" } } }
               };
             });
           }
@@ -1310,10 +1360,12 @@ function resolveClickacc(startUrl, kind, jar) {
         var md2 = _findMixdropUrl(text);
         if (md2) return tryMixDropHosts(md2.id).then(function (res) {
           return {
-            url: _buildProxyUrl(res.url, 'https://' + res.host + '/', ES_UA),
-            name: 'Eurostreaming',
-            title: 'MixDrop',
-            behaviorHints: { notWebReady: true }
+            url: res.url,
+            name: "Eurostreaming - MixDrop",
+            title: "MixDrop [ITA]",
+            quality: "720p",
+            headers: { "User-Agent": ES_UA, "Referer": "https://" + res.host + "/" },
+            behaviorHints: { notWebReady: true, proxyHeaders: { request: { "User-Agent": ES_UA, "Referer": "https://" + res.host + "/" } } }
           };
         });
       }
@@ -1365,8 +1417,16 @@ function _tmdbSeriesName(id) {
 // =========================================================================
 // ENTRY POINT
 // =========================================================================
+var _streamCache = {};
+
 function getStreams(id, type, season, episode) {
   return new Promise(function (resolve, reject) {
+    var cacheKey = String(type || 'series') + '_' + String(id || '') + '_' + String(season || '1') + '_' + String(episode || '1');
+    var cached = _streamCache[cacheKey];
+    if (cached && (Date.now() - cached.timestamp < 7200000)) {
+      return resolve(cached.streams);
+    }
+
     var rawId = String(id || '').replace(/^tmdb:/, '');
     var mediaType = String(type || 'movie').toLowerCase();
 
@@ -1397,7 +1457,14 @@ function getStreams(id, type, season, episode) {
         searchSeries(domain, title, seasonNum, function (pageUrl) {
           if (!pageUrl) return resolve([]);
           extractLinksFromPage(domain, pageUrl, seasonNum, episodeNum, function (streams) {
-            resolve(streams || []);
+            var resStreams = streams || [];
+            if (resStreams.length > 0) {
+              _streamCache[cacheKey] = {
+                streams: resStreams,
+                timestamp: Date.now()
+              };
+            }
+            resolve(resStreams);
           });
         });
       });
@@ -1441,11 +1508,13 @@ function getCinemetaMeta(type, imdbId, cb) {
 }
 
 function esFetch(url, cb) {
+  var ref = 'https://eurostreamings.ink/';
+  try { ref = new URL(url).origin + '/'; } catch (e) {}
   var headers = {
-    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/146.0.0.0 Safari/537.36',
+    'User-Agent': ES_UA,
     'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
     'Accept-Language': 'it-IT,it;q=0.9,en-US;q=0.8,en;q=0.7',
-    'Referer': 'https://eurostreamings.makeup/'
+    'Referer': ref
   };
   fetch(url, { headers: headers, timeout: 15000 })
     .then(function (r) { return r.text(); })
@@ -1453,7 +1522,10 @@ function esFetch(url, cb) {
     .catch(function (err) { cb(err, null); });
 }
 
+var _cachedEsDomain = null;
+
 function getEsDomain(cb) {
+  if (_cachedEsDomain) return cb(_cachedEsDomain);
   // Try cabod domain list, fallback to hardcoded
   fetch('https://github.com/qwertyuiop8899/streamvix/raw/refs/heads/main/config/domains.json', { timeout: 10000 })
     .then(function (r) { return r.text(); })
@@ -1461,9 +1533,21 @@ function getEsDomain(cb) {
       try {
         var json = JSON.parse(data);
         var d = json && json.eurostreaming;
-        if (d && d.domain) return cb('https://' + d.domain);
+        if (d) {
+          var domainStr = typeof d === 'string' ? d : d.domain;
+          if (domainStr) {
+            _cachedEsDomain = 'https://' + domainStr;
+            return cb(_cachedEsDomain);
+          }
+        }
         var ee = json && json['easter-egg'];
-        if (ee && ee.eurostreaming && ee.eurostreaming.domain) return cb('https://' + ee.eurostreaming.domain);
+        if (ee && ee.eurostreaming) {
+          var domainStr2 = typeof ee.eurostreaming === 'string' ? ee.eurostreaming : ee.eurostreaming.domain;
+          if (domainStr2) {
+            _cachedEsDomain = 'https://' + domainStr2;
+            return cb(_cachedEsDomain);
+          }
+        }
       } catch (e) {
         // Maybe it's a text file, try alternative format
         var lines = data.split('\n');
@@ -1473,14 +1557,19 @@ function getEsDomain(cb) {
             if (parts.length > 1 && parts[1].trim()) {
               var dom = parts[1].trim();
               if (!dom.startsWith('http')) dom = 'https://' + dom;
-              return cb(dom);
+              _cachedEsDomain = dom;
+              return cb(_cachedEsDomain);
             }
           }
         }
       }
-      cb('https://eurostreamings.makeup');
+      _cachedEsDomain = 'https://eurostreamings.makeup';
+      cb(_cachedEsDomain);
     })
-    .catch(function () { cb('https://eurostreamings.makeup'); });
+    .catch(function () {
+      _cachedEsDomain = 'https://eurostreamings.makeup';
+      cb(_cachedEsDomain);
+    });
 }
 
 function searchSeries(domain, title, seasonNum, cb) {
