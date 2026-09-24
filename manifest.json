@@ -40,6 +40,19 @@
       "filename": "plugin_es.js",
       "supportedTypes": ["series", "tv"],
       "enabled": true
+    },
+    {
+      "id": "toastflix-eurostreaming",
+      "name": "Eurostreaming",
+      "version": "1.0.0",
+      "description": "Serie TV da Eurostreaming",
+      "resources": ["stream"],
+      "contentLanguage": ["it"],
+      "formats": ["mp4", "m3u8"],
+      "idPrefixes": ["tmdb:", "tt"],
+      "filename": "plugin_es_nuvio.js",
+      "supportedTypes": ["series", "tv"],
+      "enabled": true
     }
   ]
 }
