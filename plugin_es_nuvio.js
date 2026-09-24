@@ -1419,92 +1419,110 @@ function _tmdbSeriesName(id) {
 // =========================================================================
 var _streamCache = {};
 
-function getStreams(id, type, season, episode) {
+function _getTmdbShowMeta(id) {
+  return new Promise(function (resolve) {
+    var cleanId = String(id || '').replace(/^tmdb:/, '');
+    var baseId = cleanId.split(':')[0];
+    if (/^tt\d+$/.test(baseId)) {
+      fetch('https://api.themoviedb.org/3/find/' + baseId + '?api_key=' + TMDB_API_KEY + '&external_source=imdb_id&language=it-IT', { timeout: 10000 })
+        .then(function (r) { return r.ok ? r.json() : null; })
+        .then(function (data) {
+          if (!data) return resolve(null);
+          if (data.tv_results && data.tv_results.length > 0) {
+            var tv = data.tv_results[0];
+            return resolve({ name: tv.name, original_name: tv.original_name, year: String(tv.first_air_date || '').substring(0, 4) });
+          }
+          resolve(null);
+        })
+        .catch(function () { resolve(null); });
+    } else if (/^\d+$/.test(baseId)) {
+      fetch('https://api.themoviedb.org/3/tv/' + baseId + '?api_key=' + TMDB_API_KEY + '&language=it-IT', { timeout: 10000 })
+        .then(function (r) { return r.ok ? r.json() : null; })
+        .then(function (data) {
+          if (!data) return resolve(null);
+          resolve({ name: data.name, original_name: data.original_name, year: String(data.first_air_date || '').substring(0, 4) });
+        })
+        .catch(function () { resolve(null); });
+    } else {
+      resolve(null);
+    }
+  });
+}
+
+function getStreams(id, type, season, episode, providerContext) {
   return new Promise(function (resolve, reject) {
-    var cacheKey = String(type || 'series') + '_' + String(id || '') + '_' + String(season || '1') + '_' + String(episode || '1');
+    var cleanId = String(id || '').replace(/^tmdb:/, '');
+    var idParts = cleanId.split(':');
+    var rawId = idParts[0];
+
+    var seasonNum = Number(season);
+    var episodeNum = Number(episode);
+    if ((!seasonNum || isNaN(seasonNum)) && idParts.length > 1) seasonNum = Number(idParts[1]);
+    if ((!episodeNum || isNaN(episodeNum)) && idParts.length > 2) episodeNum = Number(idParts[2]);
+    if (!seasonNum || isNaN(seasonNum) || seasonNum < 1) seasonNum = 1;
+    if (!episodeNum || isNaN(episodeNum) || episodeNum < 1) episodeNum = 1;
+
+    var mediaType = String(type || '').toLowerCase();
+    if (mediaType === 'movie' && (!season || seasonNum === 0)) return resolve([]);
+
+    var cacheKey = 'series_' + rawId + '_' + seasonNum + '_' + episodeNum;
     var cached = _streamCache[cacheKey];
     if (cached && (Date.now() - cached.timestamp < 7200000)) {
       return resolve(cached.streams);
     }
 
-    var rawId = String(id || '').replace(/^tmdb:/, '');
-    var mediaType = String(type || 'movie').toLowerCase();
-
-    if (mediaType !== 'series' && mediaType !== 'tv') return resolve([]);
-
-    var seasonNum = Number(season) || 1;
-    var episodeNum = Number(episode) || 1;
-
-    // Determine best IMDb ID and TMDB ID available.
-    // Nuvio server sets sandbox.__imdb_id = original IMDb/TMDB id.
-    // getStreams(id) receives the TMDB numeric id after Cinemeta translation.
-    var sandboxImdb = (typeof __imdb_id !== 'undefined' && __imdb_id) ? String(__imdb_id) : null;
-    var isImdb = function (s) { return /^tt\d+$/.test(String(s || '')); };
-    var isNumeric = function (s) { return /^\d+$/.test(String(s || '')); };
-
-    var imdbCandidate = null; // tt... for Cinemeta
-    var tmdbCandidate = null; // numeric for TMDB API
-
-    if (isImdb(rawId)) { imdbCandidate = rawId; }
-    else if (isNumeric(rawId)) { tmdbCandidate = rawId; }
-
-    if (sandboxImdb && isImdb(sandboxImdb)) { imdbCandidate = sandboxImdb; }
-    else if (sandboxImdb && isNumeric(sandboxImdb) && !tmdbCandidate) { tmdbCandidate = sandboxImdb; }
-
-    function doSearch(title) {
-      getEsDomain(function (domain) {
-        if (!domain) return resolve([]);
-        searchSeries(domain, title, seasonNum, function (pageUrl) {
-          if (!pageUrl) return resolve([]);
-          extractLinksFromPage(domain, pageUrl, seasonNum, episodeNum, function (streams) {
-            var resStreams = streams || [];
-            if (resStreams.length > 0) {
-              _streamCache[cacheKey] = {
-                streams: resStreams,
-                timestamp: Date.now()
-              };
-            }
-            resolve(resStreams);
+    _getTmdbShowMeta(rawId).then(function (meta) {
+      if (!meta) {
+        // Fallback Cinemeta
+        return new Promise(function(resMeta) {
+          getCinemetaMeta('series', rawId, function(err, cMeta) {
+            if (cMeta && cMeta.name) resMeta({ name: cMeta.name, original_name: cMeta.name, year: cMeta.releaseInfo });
+            else resMeta(null);
           });
         });
-      });
-    }
-
-    function tryTmdbDirect() {
-      if (tmdbCandidate) {
-        _tmdbSeriesName(tmdbCandidate).then(function (title) {
-          if (title) return doSearch(title);
-          resolve([]);
-        }).catch(function () { resolve([]); });
-      } else {
-        resolve([]);
       }
-    }
+      return meta;
+    }).then(function (meta) {
+      if (!meta || (!meta.name && !meta.original_name)) return resolve([]);
 
-    if (imdbCandidate) {
-      // 1st: Cinemeta with IMDb
-      getCinemetaMeta('series', imdbCandidate, function (err, meta) {
-        if (meta && meta.name) return doSearch(meta.name);
-        // 2nd: TMDB external lookup by IMDb ID
-        _tmdbSeriesName(imdbCandidate).then(function (title) {
-          if (title) return doSearch(title);
-          // 3rd: TMDB direct with numeric ID
-          tryTmdbDirect();
-        }).catch(function () { tryTmdbDirect(); });
+      var queries = [];
+      function addQuery(t) {
+        if (!t) return;
+        t = t.trim();
+        if (t && queries.indexOf(t) === -1) queries.push(t);
+        // Remove subtitle after - or :
+        var clean = t.replace(/[:\-].*$/, '').trim();
+        if (clean && clean !== t && queries.indexOf(clean) === -1) queries.push(clean);
+      }
+
+      addQuery(meta.name);
+      addQuery(meta.original_name);
+
+      getEsDomain(function (domain) {
+        if (!domain) return resolve([]);
+
+        var qIdx = 0;
+        function tryNextQuery() {
+          if (qIdx >= queries.length) return resolve([]);
+          var q = queries[qIdx++];
+          searchSeries(domain, q, seasonNum, function (pageUrl) {
+            if (!pageUrl) return tryNextQuery();
+            extractLinksFromPage(domain, pageUrl, seasonNum, episodeNum, function (streams) {
+              var resStreams = streams || [];
+              if (resStreams.length > 0) {
+                _streamCache[cacheKey] = { streams: resStreams, timestamp: Date.now() };
+                return resolve(resStreams);
+              }
+              tryNextQuery();
+            });
+          });
+        }
+        tryNextQuery();
       });
-    } else {
-      // No IMDb ID — go straight to TMDB numeric
-      tryTmdbDirect();
-    }
+    }).catch(function (e) {
+      resolve([]);
+    });
   });
-}
-
-function getCinemetaMeta(type, imdbId, cb) {
-  var url = 'https://v3-cinemeta.strem.io/meta/' + type + '/' + imdbId + '.json';
-  fetch(url, { timeout: 10000 })
-    .then(function (r) { return r.ok ? r.json() : null; })
-    .then(function (data) { cb(null, data && data.meta ? data.meta : null); })
-    .catch(function () { cb(null, null); });
 }
 
 function esFetch(url, cb) {
@@ -1626,11 +1644,7 @@ function searchSeries(domain, title, seasonNum, cb) {
       // Se il titolo cercato è una sola parola (es. "from"), sii molto rigido:
       // il candidato non deve contenere altre parole significative (es. "agent", "above")
       if (targetTokens.length === 1) {
-        var extraWords = candidateTokens.filter(function(w) { return w !== targetTokens[0]; });
-        var cleanExtra = extraWords.filter(function(w) {
-          return ['sub', 'ita', 'season', 'stagione', 'tv', 'show', 'hd'].indexOf(w) === -1;
-        });
-        if (cleanExtra.length > 0) return 10; // Punteggio bassissimo (scarto)
+        if (candidateTokens.indexOf(targetTokens[0]) >= 0) return 80;
       }
       
       var lenDiff = Math.abs(candidateTokens.length - targetTokens.length);
@@ -1701,7 +1715,7 @@ function extractLinksFromPage(domain, pageUrl, seasonNum, episodeNum, cb) {
 
     // Extract clicka.cc URLs from the matched region
     var clickaTasks = [];
-    var clickaRe = /https?:\/\/clicka\.cc\/(tv|mix|delta)\/[A-Za-z0-9]+/gi;
+    var clickaRe = /https?:\/\/clicka\.cc\/(?:a?(tv|mix|delta))\/[A-Za-z0-9]+/gi;
     var cm;
     while ((cm = clickaRe.exec(block)) !== null) {
       if (!seen[cm[0]]) { seen[cm[0]] = true; clickaTasks.push({ url: cm[0], kind: cm[1] }); }
@@ -1716,7 +1730,7 @@ function extractLinksFromPage(domain, pageUrl, seasonNum, episodeNum, cb) {
         resolved = true;
         cb(streams.length > 0 ? streams : null);
       }
-    }, 12000);
+    }, 25000);
 
     var pending = clickaTasks.length;
     clickaTasks.forEach(function (task) {
