@@ -42,8 +42,8 @@
       "enabled": true
     },
     {
-      "id": "toastflix-eurostreaming",
-      "name": "Eurostreaming",
+      "id": "toastflix-eurostreaming_nv",
+      "name": "Eurostreaming_nv",
       "version": "1.0.0",
       "description": "Serie TV da Eurostreaming",
       "resources": ["stream"],
