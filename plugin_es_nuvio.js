@@ -1,5 +1,23 @@
 /* Eurostreaming (es) provider - Nuvio plugin
  * Only TV series. Extracts mixdrop, turbovid, deltabit streams
+ * with clicka.cc captcha OCR resolution (pure JS, zero dependencies).
+ */
+
+// =========================================================================
+// ZERO-DEPENDENCY INFLATER (pure JS zlib inflater)
+// =========================================================================
+var _unzlibSync;
+/* Eurostreaming (es) provider - Nuvio plugin
+ * Only TV series. Extracts mixdrop, turbovid, deltabit streams
+ * with clicka.cc captcha OCR resolution (pure JS, zero dependencies).
+ */
+
+// =========================================================================
+// ZERO-DEPENDENCY INFLATER (pure JS zlib inflater)
+// =========================================================================
+var _unzlibSync;
+/* Eurostreaming (es) provider - Nuvio plugin
+ * Only TV series. Extracts mixdrop, turbovid, deltabit streams
  * with clicka.cc captcha OCR resolution (no npm dependencies).
  */
 // =========================================================================
@@ -7,9 +25,11 @@
 // =========================================================================
 // SAFE FETCH WRAPPER (for Nuvio / React Native client sandbox)
 // =========================================================================
-(()=>{var wr=(r,n,t)=>()=>{if(t)throw t[0];try{return r&&(n=r(r=0)),n}catch(a){throw t=[a],a}};var mr=(r,n)=>()=>{try{return n||r((n={exports:{}}).exports,n),n.exports}catch(t){throw n=0,t}};function hr(r,n){return Cr(r.subarray(Br(r,n&&n.dictionary),-4),{i:2},n&&n.out,n&&n.dictionary)}var h,S,xr,tr,er,zr,ir,ar,or,Ar,sr,Mr,Lr,W,g,o,I,B,o,o,o,o,fr,o,Sr,Tr,d,u,V,Ur,Fr,Dr,l,Cr,Ir,Br,Zr,Er,ur=wr(()=>{h=Uint8Array,S=Uint16Array,xr=Int32Array,tr=new h([0,0,0,0,0,0,0,0,1,1,1,1,2,2,2,2,3,3,3,3,4,4,4,4,5,5,5,5,0,0,0,0]),er=new h([0,0,0,0,1,1,2,2,3,3,4,4,5,5,6,6,7,7,8,8,9,9,10,10,11,11,12,12,13,13,0,0]),zr=new h([16,17,18,0,8,7,9,6,10,5,11,4,12,3,13,2,14,1,15]),ir=function(r,n){for(var t=new S(31),a=0;a<31;++a)t[a]=n+=1<<r[a-1];for(var i=new xr(t[30]),a=1;a<30;++a)for(var c=t[a];c<t[a+1];++c)i[c]=c-t[a]<<5|a;return{b:t,r:i}},ar=ir(tr,2),or=ar.b,Ar=ar.r;or[28]=258,Ar[258]=28;sr=ir(er,0),Mr=sr.b,Lr=sr.r,W=new S(32768);for(o=0;o<32768;++o)g=(o&43690)>>1|(o&21845)<<1,g=(g&52428)>>2|(g&13107)<<2,g=(g&61680)>>4|(g&3855)<<4,W[o]=((g&65280)>>8|(g&255)<<8)>>1;I=(function(r,n,t){for(var a=r.length,i=0,c=new S(n);i<a;++i)r[i]&&++c[r[i]-1];var y=new S(n);for(i=1;i<n;++i)y[i]=y[i-1]+c[i-1]<<1;var p;if(t){p=new S(1<<n);var z=15-n;for(i=0;i<a;++i)if(r[i])for(var T=i<<4|r[i],w=n-r[i],e=y[r[i]-1]++<<w,s=e|(1<<w)-1;e<=s;++e)p[W[e]>>z]=T}else for(p=new S(a),i=0;i<a;++i)r[i]&&(p[i]=W[y[r[i]-1]++]>>15-r[i]);return p}),B=new h(288);for(o=0;o<144;++o)B[o]=8;for(o=144;o<256;++o)B[o]=9;for(o=256;o<280;++o)B[o]=7;for(o=280;o<288;++o)B[o]=8;fr=new h(32);for(o=0;o<32;++o)fr[o]=5;Sr=I(B,9,1),Tr=I(fr,5,1),d=function(r){for(var n=r[0],t=1;t<r.length;++t)r[t]>n&&(n=r[t]);return n},u=function(r,n,t){var a=n/8|0;return(r[a]|r[a+1]<<8)>>(n&7)&t},V=function(r,n){var t=n/8|0;return(r[t]|r[t+1]<<8|r[t+2]<<16)>>(n&7)},Ur=function(r){return(r+7)/8|0},Fr=function(r,n,t){return(n==null||n<0)&&(n=0),(t==null||t>r.length)&&(t=r.length),new h(r.subarray(n,t))},Dr=["unexpected EOF","invalid block type","invalid length/literal","invalid distance","stream finished","no stream handler",,"no callback","invalid UTF-8 data","extra field too long","date not in range 1980-2099","filename too long","stream finishing","invalid zip data"],l=function(r,n,t){var a=new Error(n||Dr[r]);if(a.code=r,Error.captureStackTrace&&Error.captureStackTrace(a,l),!t)throw a;return a},Cr=function(r,n,t,a){var i=r.length,c=a?a.length:0;if(!i||n.f&&!n.l)return t||new h(0);var y=!t,p=y||n.i!=2,z=n.i;y&&(t=new h(i*3));var T=function(_){var rr=t.length;if(_>rr){var nr=new h(Math.max(rr*2,_));nr.set(t),t=nr}},w=n.f||0,e=n.p||0,s=n.b||0,x=n.l,Z=n.d,U=n.m,F=n.n,G=i*8;do{if(!x){w=u(r,e,1);var O=u(r,e+1,3);if(e+=3,O)if(O==1)x=Sr,Z=Tr,U=9,F=5;else if(O==2){var P=u(r,e,31)+257,Y=u(r,e+10,15)+4,j=P+u(r,e+5,31)+1;e+=14;for(var D=new h(j),$=new h(19),f=0;f<Y;++f)$[zr[f]]=u(r,e+f*3,7);e+=Y*3;for(var J=d($),vr=(1<<J)-1,cr=I($,J,1),f=0;f<j;){var K=cr[u(r,e,vr)];e+=K&15;var v=K>>4;if(v<16)D[f++]=v;else{var A=0,E=0;for(v==16?(E=3+u(r,e,3),e+=2,A=D[f-1]):v==17?(E=3+u(r,e,7),e+=3):v==18&&(E=11+u(r,e,127),e+=7);E--;)D[f++]=A}}var Q=D.subarray(0,P),m=D.subarray(P);U=d(Q),F=d(m),x=I(Q,U,1),Z=I(m,F,1)}else l(1);else{var v=Ur(e)+4,q=r[v-4]|r[v-3]<<8,L=v+q;if(L>i){z&&l(0);break}p&&T(s+q),t.set(r.subarray(v,L),s),n.b=s+=q,n.p=e=L*8,n.f=w;continue}if(e>G){z&&l(0);break}}p&&T(s+131072);for(var pr=(1<<U)-1,gr=(1<<F)-1,H=e;;H=e){var A=x[V(r,e)&pr],M=A>>4;if(e+=A&15,e>G){z&&l(0);break}if(A||l(2),M<256)t[s++]=M;else if(M==256){H=e,x=null;break}else{var X=M-254;if(M>264){var f=M-257,C=tr[f];X=u(r,e,(1<<C)-1)+or[f],e+=C}var N=Z[V(r,e)&gr],R=N>>4;N||l(3),e+=N&15;var m=Mr[R];if(R>3){var C=er[R];m+=V(r,e)&(1<<C)-1,e+=C}if(e>G){z&&l(0);break}p&&T(s+131072);var k=s+X;if(s<m){var b=c-m,yr=Math.min(m,k);for(b+s<0&&l(3);s<yr;++s)t[s]=a[b+s]}for(;s<k;++s)t[s]=t[s-m]}}n.l=x,n.p=H,n.b=s,n.f=w,x&&(w=1,n.m=U,n.d=Z,n.n=F)}while(!w);return s!=t.length&&y?Fr(t,0,s):t.subarray(0,s)},Ir=new h(0),Br=function(r,n){return((r[0]&15)!=8||r[0]>>4>7||(r[0]<<8|r[1])%31)&&l(6,"invalid zlib data"),(r[1]>>5&1)==+!n&&l(6,"invalid zlib data: "+(r[1]&32?"need":"unexpected")+" dictionary"),(r[1]>>3&4)+2};Zr=typeof TextDecoder<"u"&&new TextDecoder,Er=0;try{Zr.decode(Ir,{stream:!0}),Er=1}catch{}});var Or=mr(lr=>{ur();var Gr=typeof globalThis<"u"?globalThis:typeof window<"u"?window:lr;Gr._unzlibSync=hr});Or();})();
+(()=>{var wr=(r,n,t)=>()=>{if(t)throw t[0];try{return r&&(n=r(r=0)),n}catch(a){throw t=[a],a}};var mr=(r,n)=>()=>{try{return n||r((n={exports:{}}).exports,n),n.exports}catch(t){throw n=0,t}};function hr(r,n){return Cr(r.subarray(Br(r,n&&n.dictionary),-4),{i:2},n&&n.out,n&&n.dictionary)}var h,S,xr,tr,er,zr,ir,ar,or,Ar,sr,Mr,Lr,W,g,o,I,B,o,o,o,o,fr,o,Sr,Tr,d,u,V,Ur,Fr,Dr,l,Cr,Ir,Br,Zr,Er,ur=wr(()=>{h=Uint8Array,S=Uint16Array,xr=Int32Array,tr=new h([0,0,0,0,0,0,0,0,1,1,1,1,2,2,2,2,3,3,3,3,4,4,4,4,5,5,5,5,0,0,0,0]),er=new h([0,0,0,0,1,1,2,2,3,3,4,4,5,5,6,6,7,7,8,8,9,9,10,10,11,11,12,12,13,13,0,0]),zr=new h([16,17,18,0,8,7,9,6,10,5,11,4,12,3,13,2,14,1,15]),ir=function(r,n){for(var t=new S(31),a=0;a<31;++a)t[a]=n+=1<<r[a-1];for(var i=new xr(t[30]),a=1;a<30;++a)for(var c=t[a];c<t[a+1];++c)i[c]=c-t[a]<<5|a;return{b:t,r:i}},ar=ir(tr,2),or=ar.b,Ar=ar.r;or[28]=258,Ar[258]=28;sr=ir(er,0),Mr=sr.b,Lr=sr.r,W=new S(32768);for(o=0;o<32768;++o)g=(o&43690)>>1|(o&21845)<<1,g=(g&52428)>>2|(g&13107)<<2,g=(g&61680)>>4|(g&3855)<<4,W[o]=((g&65280)>>8|(g&255)<<8)>>1;I=(function(r,n,t){for(var a=r.length,i=0,c=new S(n);i<a;++i)r[i]&&++c[r[i]-1];var y=new S(n);for(i=1;i<n;++i)y[i]=y[i-1]+c[i-1]<<1;var p;if(t){p=new S(1<<n);var z=15-n;for(i=0;i<a;++i)if(r[i])for(var T=i<<4|r[i],w=n-r[i],e=y[r[i]-1]++<<w,s=e|(1<<w)-1;e<=s;++e)p[W[e]>>z]=T}else for(p=new S(a),i=0;i<a;++i)r[i]&&(p[i]=W[y[r[i]-1]++]>>15-r[i]);return p}),B=new h(288);for(o=0;o<144;++o)B[o]=8;for(o=144;o<256;++o)B[o]=9;for(o=256;o<280;++o)B[o]=7;for(o=280;o<288;++o)B[o]=8;fr=new h(32);for(o=0;o<32;++o)fr[o]=5;Sr=I(B,9,1),Tr=I(fr,5,1),d=function(r){for(var n=r[0],t=1;t<r.length;++t)r[t]>n&&(n=r[t]);return n},u=function(r,n,t){var a=n/8|0;return(r[a]|r[a+1]<<8)>>(n&7)&t},V=function(r,n){var t=n/8|0;return(r[t]|r[t+1]<<8|r[t+2]<<16)>>(n&7)},Ur=function(r){return(r+7)/8|0},Fr=function(r,n,t){return(n==null||n<0)&&(n=0),(t==null||t>r.length)&&(t=r.length),new h(r.subarray(n,t))},Dr=["unexpected EOF","invalid block type","invalid length/literal","invalid distance","stream finished","no stream handler",,"no callback","invalid UTF-8 data","extra field too long","date not in range 1980-2099","filename too long","stream finishing","invalid zip data"],l=function(r,n,t){var a=new Error(n||Dr[r]);if(a.code=r,Error.captureStackTrace&&Error.captureStackTrace(a,l),!t)throw a;return a},Cr=function(r,n,t,a){var i=r.length,c=a?a.length:0;if(!i||n.f&&!n.l)return t||new h(0);var y=!t,p=y||n.i!=2,z=n.i;y&&(t=new h(i*3));var T=function(_){var rr=t.length;if(_>rr){var nr=new h(Math.max(rr*2,_));nr.set(t),t=nr}},w=n.f||0,e=n.p||0,s=n.b||0,x=n.l,Z=n.d,U=n.m,F=n.n,G=i*8;do{if(!x){w=u(r,e,1);var O=u(r,e+1,3);if(e+=3,O)if(O==1)x=Sr,Z=Tr,U=9,F=5;else if(O==2){var P=u(r,e,31)+257,Y=u(r,e+10,15)+4,j=P+u(r,e+5,31)+1;e+=14;for(var D=new h(j),$=new h(19),f=0;f<Y;++f)$[zr[f]]=u(r,e+f*3,7);e+=Y*3;for(var J=d($),vr=(1<<J)-1,cr=I($,J,1),f=0;f<j;){var K=cr[u(r,e,vr)];e+=K&15;var v=K>>4;if(v<16)D[f++]=v;else{var A=0,E=0;for(v==16?(E=3+u(r,e,3),e+=2,A=D[f-1]):v==17?(E=3+u(r,e,7),e+=3):v==18&&(E=11+u(r,e,127),e+=7);E--;)D[f++]=A}}var Q=D.subarray(0,P),m=D.subarray(P);U=d(Q),F=d(m),x=I(Q,U,1),Z=I(m,F,1)}else l(1);else{var v=Ur(e)+4,q=r[v-4]|r[v-3]<<8,L=v+q;if(L>i){z&&l(0);break}p&&T(s+q),t.set(r.subarray(v,L),s),n.b=s+=q,n.p=e=L*8,n.f=w;continue}if(e>G){z&&l(0);break}}p&&T(s+131072);for(var pr=(1<<U)-1,gr=(1<<F)-1,H=e;;H=e){var A=x[V(r,e)&pr],M=A>>4;if(e+=A&15,e>G){z&&l(0);break}if(A||l(2),M<256)t[s++]=M;else if(M==256){H=e,x=null;break}else{var X=M-254;if(M>264){var f=M-257,C=tr[f];X=u(r,e,(1<<C)-1)+or[f],e+=C}var N=Z[V(r,e)&gr],R=N>>4;N||l(3),e+=N&15;var m=Mr[R];if(R>3){var C=er[R];m+=V(r,e)&(1<<C)-1,e+=C}if(e>G){z&&l(0);break}p&&T(s+131072);var k=s+X;if(s<m){var b=c-m,yr=Math.min(m,k);for(b+s<0&&l(3);s<yr;++s)t[s]=a[b+s]}for(;s<k;++s)t[s]=t[s-m]}}n.l=x,n.p=H,n.b=s,n.f=w,x&&(w=1,n.m=U,n.d=Z,n.n=F)}while(!w);return s!=t.length&&y?Fr(t,0,s):t.subarray(0,s)},Ir=new h(0),Br=function(r,n){return((r[0]&15)!=8||r[0]>>4>7||(r[0]<<8|r[1])%31)&&l(6,"invalid zlib data"),(r[1]>>5&1)==+!n&&l(6,"invalid zlib data: "+(r[1]&32?"need":"unexpected")+" dictionary"),(r[1]>>3&4)+2};Zr=typeof TextDecoder<"u"&&new TextDecoder,Er=0;try{Zr.decode(Ir,{stream:!0}),Er=1}catch{}});var Or=mr(lr=>{ur();var Gr=typeof globalThis<"u"?globalThis:typeof window<"u"?window:lr;_unzlibSync=hr;_unzlibSync=hr;Gr._unzlibSync=hr});Or();})();
 
-
+// =========================================================================
+// BASE64 DECODER POLYFILL (for React Native environments without atob)
+// =========================================================================
 function _atob(b64) {
   if (typeof atob !== "undefined") return atob(b64);
   var chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=";
@@ -21,60 +41,94 @@ function _atob(b64) {
   return output;
 }
 
-var _globalFetch = (typeof globalThis !== "undefined" && globalThis.fetch) ? globalThis.fetch : (typeof window !== "undefined" && window.fetch) ? window.fetch : fetch;
-fetch = function (url, options) {
-  var targetUrl = url;
-  var lower = String(url || "").toLowerCase();
-  var isClicaDeltabit = lower.indexOf("clicka.cc/delta") >= 0 || lower.indexOf("clicka.cc/adelta") >= 0;
-  var isClicaTurbovid = lower.indexOf("clicka.cc/tv/") >= 0 || lower.indexOf("clicka.cc/tva/") >= 0;
-  var isDeltabitHost = lower.indexOf("deltabit") >= 0;
-  var isTurbovidHost = lower.indexOf("turbovid") >= 0;
-  var isSafego = lower.indexOf("safego.cc") >= 0;
-
-  if (isClicaDeltabit || isClicaTurbovid || isDeltabitHost || isTurbovidHost || isSafego) {
-    if (lower.indexOf("workers.dev") < 0) {
-      targetUrl = "https://vidclick.leanhhu061208-775.workers.dev/?url=" + encodeURIComponent(url);
-    }
+// =========================================================================
+// URL HELPERS (pure regex, no reliance on global URL / React Native URL polyfill)
+// =========================================================================
+function _resolveUrl(href, base) {
+  if (!href) return base || '';
+  href = String(href).trim();
+  if (href.indexOf('://') >= 0) return href;
+  if (href.indexOf('//') === 0) {
+    var proto = (base && base.indexOf('https:') === 0) ? 'https:' : 'http:';
+    return proto + href;
   }
-  return _globalFetch(targetUrl, options);
+  if (!base) return href;
+  var baseMatch = String(base).match(/^(https?:\/\/[^\/]+)(.*)$/i);
+  if (!baseMatch) return href;
+  var baseOrigin = baseMatch[1];
+  var basePath = baseMatch[2] || '';
+  if (href.indexOf('/') === 0) {
+    return baseOrigin + href;
+  }
+  var dir = basePath.substring(0, basePath.lastIndexOf('/') + 1);
+  if (!dir) dir = '/';
+  return baseOrigin + dir + href;
 }
 
-// CONFIGURATION
+function _getUrlOrigin(url) {
+  var m = String(url || '').match(/^(https?:\/\/[^\/:]+(?::\d+)?)/i);
+  return m ? m[1] : '';
+}
+
+function _getUrlHost(url) {
+  var m = String(url || '').match(/^https?:\/\/([^\/]+)/i);
+  return m ? m[1].toLowerCase() : '';
+}
+
+function _getUrlHostname(url) {
+  var m = String(url || '').match(/^https?:\/\/([^/:]+)/i);
+  return m ? m[1].toLowerCase() : '';
+}
+
+function _getUrlPath(url) {
+  var m = String(url || '').match(/^https?:\/\/[^\/]+(\/?.*?)(?:[?#]|$)/i);
+  return (m && m[1]) ? (m[1].startsWith('/') ? m[1] : '/' + m[1]) : '/';
+}
+
+// =========================================================================
+// SAFE FETCH WRAPPER (automatically proxies clicka/deltabit/turbovid/safego)
 // =========================================================================
 var ES_UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36';
 
-if (typeof URL === 'undefined') {
-  URL = function (uri, base) {
-    var resolved = uri;
-    if (base) {
-      if (uri.indexOf('://') < 0) {
-        var baseParts = base.match(/^(https?:\/\/[^\/]+)(.*)$/);
-        var baseOrigin = baseParts ? baseParts[1] : '';
-        var basePath = baseParts ? baseParts[2] : '';
-        if (uri.startsWith('//')) {
-          resolved = (base.startsWith('https') ? 'https:' : 'http:') + uri;
-        } else if (uri.startsWith('/')) {
-          resolved = baseOrigin + uri;
-        } else {
-          var dir = basePath.substring(0, basePath.lastIndexOf('/') + 1);
-          resolved = baseOrigin + dir + uri;
-        }
-      }
-    }
-    var m = resolved.match(/^(https?):\/\/([^\/?:#]+)(?::(\d+))?([^?#]*)(\?[^#]*)?(#.*)?$/);
-    if (!m) throw new Error('Invalid URL: ' + resolved);
-    this.href = resolved;
-    this.protocol = m[1] + ':';
-    this.hostname = m[2];
-    this.port = m[3] || '';
-    this.host = this.hostname + (this.port ? ':' + this.port : '');
-    this.pathname = m[4] || '/';
-    this.search = m[5] || '';
-    this.hash = m[6] || '';
-    this.origin = m[1] + '://' + this.host;
-  };
-}
+function _customFetch(url, options, timeoutMs) {
+  var targetUrl = url;
+  var lower = String(url || '').toLowerCase();
+  var isClicaDeltabit = lower.indexOf('clicka.cc/delta') >= 0 || lower.indexOf('clicka.cc/adelta') >= 0;
+  var isClicaTurbovid = lower.indexOf('clicka.cc/tv/') >= 0 || lower.indexOf('clicka.cc/tva/') >= 0;
+  var isDeltabitHost = lower.indexOf('deltabit') >= 0;
+  var isTurbovidHost = lower.indexOf('turbovid') >= 0;
+  var isSafego = lower.indexOf('safego.cc') >= 0;
 
+  if (isClicaDeltabit || isClicaTurbovid || isDeltabitHost || isTurbovidHost || isSafego) {
+    if (lower.indexOf('workers.dev') < 0) {
+      targetUrl = 'https://vidclick.leanhhu061208-775.workers.dev/?url=' + encodeURIComponent(url);
+    }
+  }
+
+  var ms = timeoutMs || (options && options.timeout) || 15000;
+  var opts = options ? { ...options } : {};
+  delete opts.timeout;
+
+  var fetchFn = (typeof fetch !== 'undefined') ? fetch : (typeof globalThis !== 'undefined' ? globalThis.fetch : null);
+  if (!fetchFn) {
+    return Promise.reject(new Error('fetch is not defined in runtime'));
+  }
+
+  var timer = null;
+  var timeoutPromise = new Promise(function (_, reject) {
+    timer = setTimeout(function () {
+      reject(new Error('Fetch timeout (' + ms + 'ms) for ' + url));
+    }, ms);
+  });
+
+  return Promise.race([
+    fetchFn(targetUrl, opts).then(function (res) {
+      if (timer) clearTimeout(timer);
+      return res;
+    }),
+    timeoutPromise
+  ]);
+}
 var MD_HOSTS = [
   'mixdrop.vip', 'mixdrop.ps', 'mixdrop.ch', 'mixdrop.to', 'mixdrop.club',
   'mixdrop.is', 'mixdrop.sb', 'mixdrop.co', 'mixdrop.ag', 'mixdrop.net',
@@ -96,28 +150,7 @@ function _decodeEntities(s) {
     .replace(/&amp;/g, '&');
 }
 
-function _resolveUrl(href, base) {
-  try { return new URL(href, base).href; } catch (e) { return null; }
-}
 
-function _buildProxyUrl(rawUrl, referer, ua, origin) {
-  try {
-    var urlObj = new URL(rawUrl);
-    var destOrigin = urlObj.origin;
-    var pathnameAndSearch = urlObj.pathname + urlObj.search;
-    var opts = 'd=' + encodeURIComponent(destOrigin) +
-      '&h=' + encodeURIComponent('User-Agent:' + (ua || ES_UA)) +
-      '&h=' + encodeURIComponent('Referer:' + referer);
-    if (origin) {
-      opts += '&h=' + encodeURIComponent('Origin:' + origin);
-    }
-    // If the resource is an MP4 file, force content-type to video/mp4 to override incorrect upstream content-types (e.g. text/plain on Deltabit)
-    if (rawUrl.toLowerCase().indexOf('.mp4') >= 0) {
-      opts += '&r=' + encodeURIComponent('content-type:video/mp4');
-    }
-    return '/proxy/' + opts + pathnameAndSearch;
-  } catch (e) { return rawUrl; }
-}
 
 function _sleep(ms) {
   return new Promise(function (r) { setTimeout(r, ms); });
@@ -145,9 +178,7 @@ function _jarSet(url, setCookieHeader, jar) {
       if (domain.charAt(0) === '.') domain = domain.substring(1);
     }
   }
-  if (!domain) {
-    try { domain = new URL(url).hostname; } catch (e) { return; }
-  }
+  if (!domain) { domain = _getUrlHostname(url); if (!domain) return; }
   var activeJar = jar || _cookieJar;
   if (!activeJar[domain]) activeJar[domain] = {};
   activeJar[domain][name] = value;
@@ -155,7 +186,7 @@ function _jarSet(url, setCookieHeader, jar) {
 
 function _jarGet(url, jar) {
   try {
-    var host = new URL(url).hostname;
+    var host = _getUrlHostname(url); if (!host) return "";
     var parts = host.split('.');
     var cookies = [];
     var activeJar = jar || _cookieJar;
@@ -233,11 +264,8 @@ function _follow(url, options, maxHops, jar) {
       }
 
       var fetchTimeoutMs = fetchOpts.timeout || 15000;
-      var fetchTimer = setTimeout(function () {
-        reject(new Error('Follow fetch timeout ' + fetchTimeoutMs + 'ms'));
-      }, fetchTimeoutMs);
-      fetch(finalFetchUrl, { ...fetchOpts, redirect: 'manual' }).then(function (r) {
-        clearTimeout(fetchTimer);
+      delete fetchOpts.timeout;
+      _customFetch(finalFetchUrl, { ...fetchOpts, redirect: 'manual' }, fetchTimeoutMs).then(function (r) {
         var finalUrl = curUrl;
         _extractCookies(r, finalUrl, jar);
         if (r.status >= 300 && r.status < 400 && r.status !== 304) {
@@ -274,7 +302,7 @@ function _clickaPost(url, formData, referer, jar) {
     'Accept-Language': 'it-IT,it;q=0.9,en-US;q=0.8,en;q=0.7',
     'Content-Type': 'application/x-www-form-urlencoded'
   };
-  try { headers['Origin'] = new URL(url).origin; } catch (e) { }
+  var _org = _getUrlOrigin(url); if (_org) headers["Origin"] = _org;
   if (referer) headers['Referer'] = referer;
   var body = typeof formData === 'string' ? formData : _formEncode(formData);
   return _follow(url, { method: 'POST', headers: headers, body: body }, 7, jar);
@@ -736,18 +764,10 @@ function _formDataFromInputs(text, guess, captchaField) {
 }
 
 function _findCaptchaFormAction(text, baseUrl) {
-  var formRe = /<form\b[^>]*>/gi;
-  var m;
-  while ((m = formRe.exec(text))) {
-    if (m[0].toLowerCase().indexOf('data:image') >= 0 ||
-      /name=["']?capt(?:cha|ch5|ch6)?["']?/i.test(m[0])) {
-      var actionM = m[0].match(/\baction=(?:"([^"]*)"|'([^']*)'|([^\s>]+))/i);
-      if (actionM) {
-        var action = _decodeEntities(actionM[1] || actionM[2] || actionM[3] || '').trim();
-        if (action) return _resolveUrl(action, baseUrl);
-      }
-      return baseUrl;
-    }
+  var formMatch = text.match(/<form\b[^>]*action=(?:"([^"]*)"|'([^']*)'|([^\s>]+))[^>]*>/i);
+  if (formMatch) {
+    var rawAction = _decodeEntities(formMatch[1] || formMatch[2] || formMatch[3] || '').trim();
+    if (rawAction && rawAction !== '#') return _resolveUrl(rawAction, baseUrl);
   }
   return baseUrl;
 }
@@ -847,23 +867,12 @@ function _findStreamSource(text) {
   return null;
 }
 
-function _isDeltabitHost(url) {
-  try { return /(^|\.)deltabit\./.test(new URL(url).host); } catch (e) { return false; }
-}
+function _isDeltabitHost(url) { return /deltabit\./i.test(String(url || "")); }
 
-function _isTurbovidHost(url) {
-  try {
-    var h = new URL(url).host.toLowerCase();
-    return /(turbovid)/.test(h);
-  } catch (e) { return false; }
-}
+function _isTurbovidHost(url) { return /turbovid\./i.test(String(url || "")); }
 
-function _isMixdropHost(url) {
-  try {
-    var h = new URL(url).host.toLowerCase();
-    return new RegExp(MD_PAT).test(h);
-  } catch (e) { return false; }
-}
+function _isMixdropHost(url) { return new RegExp(MD_PAT, "i").test(String(url || "")); }
+
 
 // =========================================================================
 // PACKED JS UNPACKER (Packer by Dean Edwards)
@@ -934,7 +943,7 @@ function fetchMixDrop(host, id) {
       'Referer': 'https://' + host + '/'
     };
     var url = 'https://' + host + '/e/' + id;
-    fetch(url, { headers: headers, timeout: 15000 })
+    _customFetch(url, { headers: headers }, 15000)
       .then(function (r) { return r.text(); })
       .then(function (html) {
         var combined = html;
@@ -991,17 +1000,7 @@ function tryMixDropHosts(id) {
 // TURBOVID EXTRACTION  (GET landing -> parse form -> POST imhuman -> source)
 // =========================================================================
 function extractTurbovid(pageUrl, jar) {
-  function _fetchWithTimeout(url, options, ms) {
-    return Promise.race([
-      fetch(url, options),
-      new Promise(function (_, reject) {
-        setTimeout(function () {
-          reject(new Error('Fetch timeout ' + ms + 'ms'));
-        }, ms);
-      })
-    ]);
-  }
-  return new Promise(function (resolve, reject) {
+    return new Promise(function (resolve, reject) {
     var landingHeaders = {
       'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36',
       'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
@@ -1011,7 +1010,7 @@ function extractTurbovid(pageUrl, jar) {
     };
     var cookieStr = _jarGet(pageUrl, jar);
     if (cookieStr) landingHeaders['Cookie'] = cookieStr;
-    _fetchWithTimeout(pageUrl, { headers: landingHeaders, redirect: 'manual' }, 15000)
+    _customFetch(pageUrl, { headers: landingHeaders, redirect: "manual" }, 15000)
       .then(function (r) {
         try {
           if (r.headers && r.headers.get) {
@@ -1023,7 +1022,7 @@ function extractTurbovid(pageUrl, jar) {
       })
       .then(function (html) {
         // Try inline source first
-        var finalOrigin = (function () { try { return new URL(pageUrl).origin; } catch (e) { return ''; } })();
+        var finalOrigin = _getUrlOrigin(pageUrl);
         var source = _findStreamSource(html);
         if (source) return resolve({ url: source, headers: { 'User-Agent': landingHeaders['User-Agent'], 'Referer': pageUrl, 'Origin': finalOrigin } });
         // Parse form
@@ -1054,7 +1053,7 @@ function extractTurbovid(pageUrl, jar) {
         if (cookieStr2) postHeaders['Cookie'] = cookieStr2;
         // Sleep 5s before POST (Turbovid requires delay)
         return _sleep(5000).then(function () {
-          return _fetchWithTimeout(pageUrl, { method: 'POST', headers: postHeaders, body: _formEncode(formData), redirect: 'manual' }, 30000);
+          return _customFetch(pageUrl, { method: "POST", headers: postHeaders, body: _formEncode(formData), redirect: "manual" }, 30000);
         });
       })
       .then(function (r) {
@@ -1067,7 +1066,7 @@ function extractTurbovid(pageUrl, jar) {
         return r.text();
       })
       .then(function (html) {
-        var finalOrigin = (function () { try { return new URL(pageUrl).origin; } catch (e) { return ''; } })();
+        var finalOrigin = _getUrlOrigin(pageUrl);
         var source = _findStreamSource(html);
         if (!source) {
           var combined = html;
@@ -1092,7 +1091,7 @@ function extractTurbovid(pageUrl, jar) {
           };
           var cstr = _jarGet(pageUrl, jar);
           if (cstr) retryHeaders['Cookie'] = cstr;
-          return _fetchWithTimeout(pageUrl, { headers: retryHeaders, redirect: 'manual' }, 15000)
+          return _customFetch(pageUrl, { headers: retryHeaders, redirect: "manual" }, 15000)
             .then(function (r2) { return r2.text(); })
             .then(function (html2) {
               source = _findStreamSource(html2);
@@ -1120,7 +1119,7 @@ function extractDeltabit(pageUrl, jar) {
     };
     var cookieStr = _jarGet(pageUrl, jar);
     if (cookieStr) landingHeaders['Cookie'] = cookieStr;
-    fetch(pageUrl, { headers: landingHeaders, timeout: 15000 })
+    _customFetch(pageUrl, { headers: landingHeaders }, 15000)
       .then(function (r) {
         try {
           if (r.headers && r.headers.get) {
@@ -1131,7 +1130,7 @@ function extractDeltabit(pageUrl, jar) {
         return r.text();
       })
       .then(function (html) {
-        var finalOrigin = (function () { try { return new URL(pageUrl).origin; } catch (e) { return ''; } })();
+        var finalOrigin = _getUrlOrigin(pageUrl);
         var source = _findStreamSource(html);
         if (source) return resolve({ url: source, headers: { 'User-Agent': landingHeaders['User-Agent'], 'Referer': pageUrl, 'Origin': finalOrigin } });
         // Parse form
@@ -1162,7 +1161,7 @@ function extractDeltabit(pageUrl, jar) {
         if (cookieStr2) postHeaders['Cookie'] = cookieStr2;
         // Sleep 2.5s before POST
         return _sleep(2500).then(function () {
-          return fetch(pageUrl, { method: 'POST', headers: postHeaders, body: _formEncode(formData), timeout: 30000 });
+          return _customFetch(pageUrl, { method: "POST", headers: postHeaders, body: _formEncode(formData) }, 30000);
         });
       })
       .then(function (r) {
@@ -1175,7 +1174,7 @@ function extractDeltabit(pageUrl, jar) {
         return r.text();
       })
       .then(function (html) {
-        var finalOrigin = (function () { try { return new URL(pageUrl).origin; } catch (e) { return ''; } })();
+        var finalOrigin = _getUrlOrigin(pageUrl);
         var source = _findStreamSource(html);
         if (!source) {
           var combined = html;
@@ -1198,7 +1197,7 @@ function extractDeltabit(pageUrl, jar) {
           };
           var cstr = _jarGet(pageUrl, jar);
           if (cstr) retryHeaders['Cookie'] = cstr;
-          return fetch(pageUrl, { headers: retryHeaders, timeout: 15000 })
+          return _customFetch(pageUrl, { headers: retryHeaders }, 15000)
             .then(function (r2) { return r2.text(); })
             .then(function (html2) {
               source = _findStreamSource(html2);
@@ -1246,7 +1245,7 @@ function _followRedirector(url, referer, jar) {
 // =========================================================================
 function resolveClickacc(startUrl, kind, jar) {
   var current = startUrl;
-  var ES_DOMAIN = 'https://eurostreamings.makeup';
+  var ES_DOMAIN = 'https://eurostreamings.live';
   var referer = ES_DOMAIN + '/';
   var activeJar = jar || {};
   function loop(hop) {
@@ -1254,8 +1253,8 @@ function resolveClickacc(startUrl, kind, jar) {
     // Check if current is a redirector URL (clicka.cc/adelta|tva|amix)
     var isRedirector = false;
     try {
-      var uPath = new URL(current).pathname;
-      var uHost = new URL(current).host.toLowerCase();
+      var uHost = _getUrlHost(current);
+      var uPath = _getUrlPath(current);
       isRedirector = (uHost === 'clicka.cc') && /^\/(adelta|tva|amix)\//.test(uPath);
     } catch (e) { }
     if (isRedirector) {
@@ -1389,31 +1388,6 @@ function resolveClickacc(startUrl, kind, jar) {
 // =========================================================================
 var TMDB_API_KEY = '68e094699525b18a70bab2f86b1fa706';
 
-function _tmdbSeriesName(id) {
-  return new Promise(function (resolve) {
-    var cleanId = String(id || '').replace(/^tmdb:/, '');
-    if (/^tt\d+$/.test(cleanId)) {
-      fetch('https://api.themoviedb.org/3/find/' + cleanId + '?api_key=' + TMDB_API_KEY + '&external_source=imdb_id&language=it-IT', { timeout: 10000 })
-        .then(function (r) { return r.ok ? r.json() : null; })
-        .then(function (data) {
-          if (data && data.tv_results && data.tv_results.length > 0) {
-            resolve(data.tv_results[0].name || data.tv_results[0].original_name || null);
-          } else {
-            resolve(null);
-          }
-        })
-        .catch(function () { resolve(null); });
-    } else if (/^\d+$/.test(cleanId)) {
-      fetch('https://api.themoviedb.org/3/tv/' + cleanId + '?api_key=' + TMDB_API_KEY + '&language=it-IT', { timeout: 10000 })
-        .then(function (r) { return r.ok ? r.json() : null; })
-        .then(function (data) { resolve(data && (data.name || data.original_name) ? data.name : null); })
-        .catch(function () { resolve(null); });
-    } else {
-      resolve(null);
-    }
-  });
-}
-
 // =========================================================================
 // ENTRY POINT
 // =========================================================================
@@ -1424,7 +1398,7 @@ function _getTmdbShowMeta(id) {
     var cleanId = String(id || '').replace(/^tmdb:/, '');
     var baseId = cleanId.split(':')[0];
     if (/^tt\d+$/.test(baseId)) {
-      fetch('https://api.themoviedb.org/3/find/' + baseId + '?api_key=' + TMDB_API_KEY + '&external_source=imdb_id&language=it-IT', { timeout: 10000 })
+      _customFetch("https://api.themoviedb.org/3/find/" + baseId + "?api_key=" + TMDB_API_KEY + "&external_source=imdb_id&language=it-IT", {}, 10000)
         .then(function (r) { return r.ok ? r.json() : null; })
         .then(function (data) {
           if (!data) return resolve(null);
@@ -1436,7 +1410,7 @@ function _getTmdbShowMeta(id) {
         })
         .catch(function () { resolve(null); });
     } else if (/^\d+$/.test(baseId)) {
-      fetch('https://api.themoviedb.org/3/tv/' + baseId + '?api_key=' + TMDB_API_KEY + '&language=it-IT', { timeout: 10000 })
+      _customFetch("https://api.themoviedb.org/3/tv/" + baseId + "?api_key=" + TMDB_API_KEY + "&language=it-IT", {}, 10000)
         .then(function (r) { return r.ok ? r.json() : null; })
         .then(function (data) {
           if (!data) return resolve(null);
@@ -1526,15 +1500,14 @@ function getStreams(id, type, season, episode, providerContext) {
 }
 
 function esFetch(url, cb) {
-  var ref = 'https://eurostreamings.ink/';
-  try { ref = new URL(url).origin + '/'; } catch (e) {}
+  var ref = _getUrlOrigin(url) ? (_getUrlOrigin(url) + "/") : "https://eurostreamings.live/";
   var headers = {
     'User-Agent': ES_UA,
     'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
     'Accept-Language': 'it-IT,it;q=0.9,en-US;q=0.8,en;q=0.7',
     'Referer': ref
   };
-  fetch(url, { headers: headers, timeout: 15000 })
+  _customFetch(url, { headers: headers }, 15000)
     .then(function (r) { return r.text(); })
     .then(function (text) { cb(null, text); })
     .catch(function (err) { cb(err, null); });
@@ -1545,7 +1518,7 @@ var _cachedEsDomain = null;
 function getEsDomain(cb) {
   if (_cachedEsDomain) return cb(_cachedEsDomain);
   // Try cabod domain list, fallback to hardcoded
-  fetch('https://github.com/qwertyuiop8899/streamvix/raw/refs/heads/main/config/domains.json', { timeout: 10000 })
+  _customFetch("https://raw.githubusercontent.com/qwertyuiop8899/streamvix/main/config/domains.json", {}, 10000)
     .then(function (r) { return r.text(); })
     .then(function (data) {
       try {
@@ -1581,11 +1554,11 @@ function getEsDomain(cb) {
           }
         }
       }
-      _cachedEsDomain = 'https://eurostreamings.makeup';
+      _cachedEsDomain = 'https://eurostreamings.live';
       cb(_cachedEsDomain);
     })
     .catch(function () {
-      _cachedEsDomain = 'https://eurostreamings.makeup';
+      _cachedEsDomain = 'https://eurostreamings.live';
       cb(_cachedEsDomain);
     });
 }
